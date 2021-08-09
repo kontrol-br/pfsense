@@ -42,6 +42,7 @@ define('DMYPWD', "********");
 
 global $g;
 $g = array(
+	"acbbackuppath" => "/cf/conf/acb/",
 	"event_address" => "unix:///var/run/check_reload_status",
 	"factory_shipped_username" => "admin",
 	"factory_shipped_password" => "kontrol",
@@ -72,7 +73,7 @@ $g = array(
 	"disablehelpicon" => true,
 	"disablecrashreporter" => true,
 	"debug" => false,
-	"latest_config" => "21.8",
+	"latest_config" => "22.0",
 	"minimum_ram_warning" => "101",
 	"minimum_ram_warning_text" => "128 MB",
 	"wan_interface_name" => "wan",

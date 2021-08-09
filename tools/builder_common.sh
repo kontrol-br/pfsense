@@ -1376,6 +1376,9 @@ pkg_repo_rsync() {
 
 			if sha256 -q ${_pkgfile} | ${PKG_REPO_SIGNING_COMMAND} \
 			    > ${_pkgfile}.sig 2>/dev/null; then
+				# XXX Temporary workaround to create link to pkg sig
+				[ -e ${_repo_path}/Latest/pkg.pkg ] && \
+					ln -sf pkg.txz.sig ${_repo_path}/Latest/pkg.pkg.sig
 				echo "Done!" | tee -a ${_logfile}
 			else
 				echo "Failed!" | tee -a ${_logfile}
@@ -1909,9 +1912,10 @@ save_logs_to_s3() {
 	IFS=$'\n'
 	local _logtemp=$( mktemp /tmp/loglist.XXXXX )
 	for i in $(aws_exec s3 ls s3://pfsense-engineering-build-pkg/logs/); do
-		echo ${i} | awk '{print $4}' | grep pkg-logs-${jail_arch} >> ${_logtemp}
+		echo ${i} | awk '{print $4}' | grep pkg-logs-${jail_arch} | tr -d '\r' >> ${_logtemp}
 	done
-	local _maxlogs=5
+	# keep at least ~30 days of logs, plus some extra for one off runs
+	local _maxlogs=45
 	local _curlogs=0
 	_curlogs=$( wc -l ${_logtemp} | awk '{print $1}' )
 	if [ ${_curlogs} -gt ${_maxlogs} ]; then
@@ -1943,6 +1947,7 @@ aws_exec() {
 	    env AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID} \
 	    AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY} \
 	    AWS_DEFAULT_REGION=us-east-2 \
+	    AWS_DEFAULT_OUTPUT=text \
 	    aws $@
 	return $?
 }

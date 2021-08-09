@@ -1664,9 +1664,14 @@ function system_ntp_setup_gps($serialport) {
 	}
 
 	init_config_arr(array('ntpd', 'gps'));
+	$serialports = get_serial_ports(true);
+
+	if (!array_key_exists($serialport, $serialports)) {
+		return false;
+	}
 
 	$gps_device = '/dev/gps0';
-	$serialport = '/dev/'.$serialport;
+	$serialport = '/dev/'.basename($serialport);
 
 	if (!file_exists($serialport)) {
 		return false;
@@ -1751,8 +1756,14 @@ function system_ntp_setup_rawspeed($serialport, $baud) {
 function system_ntp_setup_pps($serialport) {
 	global $config, $g;
 
+	$serialports = get_serial_ports(true);
+
+	if (!array_key_exists($serialport, $serialports)) {
+		return false;
+	}
+
 	$pps_device = '/dev/pps0';
-	$serialport = '/dev/'.$serialport;
+	$serialport = '/dev/'.basename($serialport);
 
 	if (!file_exists($serialport)) {
 		return false;
