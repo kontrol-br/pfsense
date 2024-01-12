@@ -5,7 +5,7 @@
  * part of pfSense (https://www.pfsense.org)
  * Copyright (c) 2008-2013 BSD Perimeter
  * Copyright (c) 2013-2016 Electric Sheep Fencing
- * Copyright (c) 2014-2023 Rubicon Communications, LLC (Netgate)
+ * Copyright (c) 2014-2024 Rubicon Communications, LLC (Netgate)
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -230,7 +230,7 @@ if ($_REQUEST['download']) {
 
 // $confvers must be populated viewing info but there were errors
 $confvers = array();
-if ((!($_REQUEST['download']) || $input_errors) && check_dnsavailable()) {
+if ((!($_REQUEST['download']) || $input_errors) && resolve_address('acb.netgate.com')) {
 	// Populate available backups
 	$curl_session = curl_init();
 

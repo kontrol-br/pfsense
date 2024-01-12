@@ -5,7 +5,7 @@
  * part of pfSense (https://www.pfsense.org)
  * Copyright (c) 2015 Warren Baker <warren@percol8.co.za>
  * Copyright (c) 2015-2016 Electric Sheep Fencing
- * Copyright (c) 2015-2023 Rubicon Communications, LLC (Netgate)
+ * Copyright (c) 2015-2024 Rubicon Communications, LLC (Netgate)
  * All rights reserved.
  *
  * originally part of m0n0wall (http://m0n0.ch/wall)
@@ -657,6 +657,7 @@ function do_as_unbound_user($cmd, $param1 = "") {
 					unlink_if_exists($root_key_file);
 				}
 			}
+			// When there are conectivity issues, it may take ~10 seconds for the command to time out
 			mwexec("/usr/bin/su -m unbound -c '/usr/local/sbin/unbound-anchor -a {$root_key_file}'", true);
 			// Only sync the file if this is the real (default) one, not a test one.
 			if ($param1 == "") {

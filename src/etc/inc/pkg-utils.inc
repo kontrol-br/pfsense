@@ -6,7 +6,7 @@
  * Copyright (c) 2005-2006 Colin Smith (ethethlay@gmail.com)
  * Copyright (c) 2004-2013 BSD Perimeter
  * Copyright (c) 2013-2016 Electric Sheep Fencing
- * Copyright (c) 2014-2023 Rubicon Communications, LLC (Netgate)
+ * Copyright (c) 2014-2024 Rubicon Communications, LLC (Netgate)
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -1316,7 +1316,7 @@ function get_base_pkg_name() {
 function get_system_pkg_version($baseonly = false, $use_cache = true, $updates_only = true, $update_cache = false) {
 	global $g;
 
-	if (!check_dnsavailable('any')) {
+	if (!get_dnsavailable()) {
 		return false;
 	}
 

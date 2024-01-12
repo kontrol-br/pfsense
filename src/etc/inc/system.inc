@@ -5,7 +5,7 @@
  * part of pfSense (https://www.pfsense.org)
  * Copyright (c) 2004-2013 BSD Perimeter
  * Copyright (c) 2013-2016 Electric Sheep Fencing
- * Copyright (c) 2014-2023 Rubicon Communications, LLC (Netgate)
+ * Copyright (c) 2014-2024 Rubicon Communications, LLC (Netgate)
  * All rights reserved.
  *
  * originally part of m0n0wall (http://m0n0.ch/wall)
@@ -1213,6 +1213,9 @@ function system_get_dhcpleases($dnsavailable=null)
 	$dedup_lease = false;
 	$dedup_failover = false;
 
+	if ($dnsavailable === null) {
+		$dnsavailable = get_dnsavailable();
+	}
 	foreach ($leases_content as $line) {
 		/* Skip comments */
 		if (preg_match('/^\s*(|#.*)$/', $line)) {
@@ -1221,15 +1224,10 @@ function system_get_dhcpleases($dnsavailable=null)
 
 		if (preg_match('/}$/', $line)) {
 			if ($lease) {
-				if (empty($item['hostname'])) {
-					if (is_null($dnsavailable)) {
-						$dnsavailable = check_dnsavailable();
-					}
-					if ($dnsavailable) {
-						$hostname = gethostbyaddr($item['ip']);
-						if (!empty($hostname)) {
-							$item['hostname'] = $hostname;
-						}
+				if ($dnsavailable && empty($item['hostname'])) {
+					$hostname = resolve_address($item['ip']);
+					if (!empty($hostname)) {
+						$item['hostname'] = $hostname;
 					}
 				}
 				$leases['lease'][] = $item;
@@ -1724,6 +1722,7 @@ function get_dns_nameservers($add_v6_brackets = false, $hostns=true) {
 		  in_array("all", explode(",", config_get_path('unbound/active_interface', 'all')), true))) &&
 	    (config_get_path('system/dnslocalhost') != 'remote')) {
 		$dns_nameservers[] = "127.0.0.1";
+		$dns_nameservers[] = "::1";
 	}
 
 	if ($hostns || (config_get_path('system/dnslocalhost') != 'local')) {
@@ -3255,55 +3254,6 @@ function system_get_arp_table($resolve_hostnames = false) {
 	}
 
 	return $arp_table;
-}
-
-function _getHostName($mac, $ip) {
-	global $dhcpmac, $dhcpip;
-
-	if ($dhcpmac[$mac]) {
-		return $dhcpmac[$mac];
-	} else if ($dhcpip[$ip]) {
-		return $dhcpip[$ip];
-	} else {
-		exec("/usr/bin/host -W 1 " . escapeshellarg($ip), $output);
-		if (preg_match('/.*pointer ([A-Za-z_0-9.-]+)\..*/', $output[0], $matches)) {
-			if ($matches[1] <> $ip) {
-				return $matches[1];
-			}
-		}
-	}
-	return "";
-}
-
-function check_dnsavailable($proto='inet') {
-
-	if ($proto == 'inet') {
-		$gdns = array('8.8.8.8', '8.8.4.4');
-	} elseif ($proto == 'inet6') {
-		$gdns = array('2001:4860:4860::8888', '2001:4860:4860::8844');
-	} else {
-		$gdns = array('8.8.8.8', '8.8.4.4', '2001:4860:4860::8888', '2001:4860:4860::8844');
-	}
-	$nameservers = array_merge($gdns, get_dns_nameservers());
-	$test = 0;
-
-	foreach ($gdns as $dns) {
-		if ($dns == '127.0.0.1') {
-			continue;
-		} else {
-			$dns_result = trim(_getHostName("", $dns));
-			if (($test == '2') && ($dns_result == "")) {
-				return false;
-			} elseif ($dns_result == "") {
-				$test++;
-				continue;
-			} else {
-				return true;
-			}
-		}
-	}
-
-	return false;
 }
 
 ?>

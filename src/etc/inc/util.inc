@@ -5,7 +5,7 @@
  * part of pfSense (https://www.pfsense.org)
  * Copyright (c) 2004-2013 BSD Perimeter
  * Copyright (c) 2013-2016 Electric Sheep Fencing
- * Copyright (c) 2014-2023 Rubicon Communications, LLC (Netgate)
+ * Copyright (c) 2014-2024 Rubicon Communications, LLC (Netgate)
  * All rights reserved.
  *
  * originally part of m0n0wall (http://m0n0.ch/wall)
@@ -4469,6 +4469,77 @@ function get_interface_vip_ips($interface) {
 		}
 	}
 	return $vipips;
+}
+
+/**
+ * Checks for DNS availability.
+ * 
+ * @param int $protocol IP family to check with [AF_INET|AF_INET6]
+ * 
+ * @return bool true if DNS is available, false otherwise
+ */
+function get_dnsavailable(?int $protocol = null): bool {
+	switch ($protocol) {
+		case AF_INET:
+			$proto = '-4';
+			break;
+		case AF_INET6:
+			$proto = '-6';
+			break;
+		default:
+			$proto = '';
+			break;
+	}
+
+	// The domain doesn't matter, only that there's an answer
+	exec("/usr/bin/host -W 1 {$proto} netgate.com.", $null, $result_code);
+	if ($result_code === 0) {
+		// DNS server responded
+		return true;
+	}
+
+	// no answer
+	return false;
+}
+
+/**
+ * Verifies the existence of a DNS A/AAAA/SRV/PTR record for an address.
+ * 
+ * @param string $address URL, name, or IPv4/6 address to check.
+ * 
+ * @return string The address can be resolved. If $address is an IP address,
+ *                return the reverse lookup name, otherwise return the
+ *                unmodified input if it's a host/domain name.
+ * @return false Cannot resolve - no records found.
+ */
+function resolve_address(?string $address): string|false {
+	if (empty($address)) {
+		return false;
+	}
+
+	// Try once per server and timeout after 3 seconds per attempt - see resolver(5)
+	putenv("RES_OPTIONS=timeout:3 attempts:1");
+	if (filter_var($address, FILTER_VALIDATE_IP)) {
+		$result = gethostbyaddr($address);
+		if (empty($result) || ($result == $address)) {
+			$result = null;
+		}
+	} elseif (filter_var($address, FILTER_VALIDATE_URL)) {
+		if (!empty(dns_get_record(parse_url($address, PHP_URL_HOST), DNS_A | DNS_AAAA | DNS_SRV))) {
+			$result = $address;
+		}
+	} elseif (filter_var($address, FILTER_VALIDATE_DOMAIN)) {
+		if (!empty(dns_get_record($address, DNS_A | DNS_AAAA | DNS_SRV))) {
+			$result = $address;
+		}
+	}
+	putenv('RES_OPTIONS');
+
+	if (!empty($result)) {
+		return $result;
+	}
+
+	return false;
 }
 
 ?>

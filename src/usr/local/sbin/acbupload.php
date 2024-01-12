@@ -5,7 +5,7 @@
  * part of pfSense (https://www.pfsense.org)
  * Copyright (c) 2008-2013 BSD Perimeter
  * Copyright (c) 2013-2016 Electric Sheep Fencing
- * Copyright (c) 2014-2023 Rubicon Communications, LLC (Netgate)
+ * Copyright (c) 2014-2024 Rubicon Communications, LLC (Netgate)
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -70,7 +70,7 @@ function upload($basename) {
 
     $upload_url = "https://acb.netgate.com/save";
 
-    if (!is_url_hostname_resolvable($upload_url)) {
+    if (!resolve_address($upload_url)) {
 	$data = " Unable to resolve " . parse_url($upload_url, PHP_URL_HOST) . " ";
 	acb_error_log($upload_url, $data);
 	unlink_if_exists($acbuploadpath . $basename . ".data");

@@ -5,7 +5,7 @@
  * part of pfSense (https://www.pfsense.org)
  * Copyright (c) 2004-2013 BSD Perimeter
  * Copyright (c) 2013-2016 Electric Sheep Fencing
- * Copyright (c) 2014-2023 Rubicon Communications, LLC (Netgate)
+ * Copyright (c) 2014-2024 Rubicon Communications, LLC (Netgate)
  * All rights reserved.
  *
  * originally part of m0n0wall (http://m0n0.ch/wall)
@@ -4283,7 +4283,7 @@ function services_unbound_configure($restart_dhcp = true, $interface = '') {
 		}
 
 		$python_mode = false;
-		$python_script = config_get_path('unbound/python_script');
+		$python_script = basename(config_get_path('unbound/python_script'));
 		if (config_path_enabled('unbound','python') && !empty($python_script)) {
 			$python_mode = true;
 		}
@@ -4356,10 +4356,9 @@ function services_unbound_configure($restart_dhcp = true, $interface = '') {
 			}
 		}
 
+		// unbound has already been stopped at this point
 		if (platform_booting()) {
 			echo gettext("Starting DNS Resolver...");
-		} else {
-			sleep(1);
 		}
 
 		/* generate hosts file */

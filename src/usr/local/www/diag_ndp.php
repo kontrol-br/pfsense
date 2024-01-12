@@ -5,7 +5,7 @@
  * part of pfSense (https://www.pfsense.org)
  * Copyright (c) 2004-2013 BSD Perimeter
  * Copyright (c) 2013-2016 Electric Sheep Fencing
- * Copyright (c) 2014-2023 Rubicon Communications, LLC (Netgate)
+ * Copyright (c) 2014-2024 Rubicon Communications, LLC (Netgate)
  * Copyright (c) 2011 Seth Mos <seth.mos@dds.nl>
  * All rights reserved.
  *
@@ -102,15 +102,13 @@ foreach ($rawdata as $line) {
 // Resolve hostnames and replace Z_ with "".  The intention
 // is to sort the list by hostnames, alpha and then the non
 // resolvable addresses will appear last in the list.
+$dnsavailable = get_dnsavailable(AF_INET6);
 foreach ($data as &$entry) {
-	if (is_null($dnsavailable)) {
-		$dnsavailable = check_dnsavailable('inet6');
+	$dns="";
+	if (!empty($entry['ipv6']) && $dnsavailable) {
+		$dns = resolve_address($entry['ipv6']);
 	}
-	if ($dnsavailable) {
-		$dns = trim(_getHostName($entry['mac'], $entry['ipv6']));
-	} else {
-		$dns = "";
-	}
+
 	if (trim($dns)) {
 		$entry['dnsresolve'] = "$dns";
 	} else {

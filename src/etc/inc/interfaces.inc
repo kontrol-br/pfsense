@@ -5,7 +5,7 @@
  * part of pfSense (https://www.pfsense.org)
  * Copyright (c) 2004-2013 BSD Perimeter
  * Copyright (c) 2013-2016 Electric Sheep Fencing
- * Copyright (c) 2014-2023 Rubicon Communications, LLC (Netgate)
+ * Copyright (c) 2014-2024 Rubicon Communications, LLC (Netgate)
  * All rights reserved.
  *
  * originally based on m0n0wall (http://m0n0.ch/wall)
@@ -1026,6 +1026,8 @@ function interface_lagg_configure($lagg, $flush = true) {
 	}
 
 	interfaces_bring_up($laggif);
+	// after the lagg is recreated, its VLANs must be reconfigured
+	interfaces_vlan_configure($laggif);
 
 	return $laggif;
 }
@@ -1499,13 +1501,13 @@ function interface_ipsec_vti_configure($ph1ent) {
 			} else {
 				$inet = "inet";
 				$gwtype = "";
-				$right = escapeshellarg($addr['right']);
+				$right = escapeshellarg((explode('/', $addr['right'], 2))[0]);
 			}
 
 			mwexec("/sbin/ifconfig " . escapeshellarg($ipsecif) . " {$inet} " . escapeshellarg($addr['left']) . " " . $right . $addr['alias']);
 			/* If alias is empty, this is the first address on the interface and should be used as the gateway. */
 			if (empty($addr['alias'])) {
-				file_put_contents("/tmp/{$ipsecif}_router{$gwtype}", $addr['right']);
+				file_put_contents("/tmp/{$ipsecif}_router{$gwtype}", (explode('/', $addr['right'], 2))[0]);
 				unlink_if_exists("/tmp/{$ipsecif}_router{$gwtype}.last");
 			}
 		}
