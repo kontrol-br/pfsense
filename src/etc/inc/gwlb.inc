@@ -47,7 +47,7 @@ if (!array_key_exists('GatewaysCache', $GLOBALS)) {
 
 /**
  * Caches the gateway list and filters the result. Changes to gateways should
- * call refresh_gateways_cache(), e.g. when adding or removing dynamic gateways.
+ * call refresh_gateways(), e.g. when adding or removing dynamic gateways.
  * 
  * @param array $flags Additional gateways to include.
  * 
@@ -55,7 +55,7 @@ if (!array_key_exists('GatewaysCache', $GLOBALS)) {
  */
 function get_gateways(int $flags = 0): array {
 	if (!is_array($GLOBALS['GatewaysCache'])) {
-		refresh_gateways_cache(); // create the gateway list cache
+		refresh_gateways(); // create the gateway list cache
 	}
 	$gateways = $GLOBALS['GatewaysCache'];
 	$indexed = boolval($flags & GW_CACHE_INDEXED);
@@ -100,8 +100,40 @@ function get_gateways(int $flags = 0): array {
 	return $gateways;
 }
 
-function refresh_gateways_cache(): void {
+/**
+ * Generates a list of all gateways and adds them to the config if missing.
+ */
+function refresh_gateways(): void {
+	// Generate all gateways and cache the result
 	$GLOBALS['GatewaysCache'] = return_gateways_array(true, true, true);
+
+	// Get gateways that exist in the config
+	$saved_gateways = array_column(config_get_path('gateways/gateway_item', []), 'name', 'name');
+
+	// Exclude null gateways from being saved to config
+	foreach (array_diff_key($GLOBALS["GatewaysCache"], array_fill_keys(['Null4', 'Null6'], null)) as $gateway) {
+		// Save any of the generated gateways that are not found in config
+		if (!array_key_exists($gateway['name'], $saved_gateways)) {
+			// Build the gateway elements and save the gateway to config
+			config_set_path('gateways/gateway_item',
+				array_merge(config_get_path('gateways/gateway_item', []), [[
+					'interface' => $gateway['friendlyiface'],
+					'gateway' => $gateway['dynamic'] ? 'dynamic' : $gateway['gateway'],
+					'name' => $gateway['name'],
+					'weight' => $gateway['weight'] ?? 1,
+					'ipprotocol' => $gateway['ipprotocol'],
+					'descr' => $gateway['descr'],
+					'gw_down_kill_states' => $gateway['gw_down_kill_states'] ?? ''
+				]])
+			);
+			if (!isset($write_config)) {
+				$write_config = true;
+			}
+		}
+	}
+	if ($write_config) {
+		write_config(gettext('Synced configured gateways'), true, true);
+	}
 }
 
 /* Returns an array of default values used for dpinger */
@@ -265,7 +297,7 @@ function start_dpinger($gateway) {
 function setup_gateways_monitor() {
 	global $config, $g;
 
-	refresh_gateways_cache(); // dynamic gateways may have changed so refresh the cache
+	refresh_gateways(); // dynamic gateways may have changed so refresh the cache
 	$gateways_arr = get_gateways();
 	if (!is_array($gateways_arr)) {
 		log_error(gettext("No gateways to monitor. dpinger will not run."));
@@ -406,6 +438,121 @@ function setup_gateways_monitor() {
 	}
 
 	return;
+}
+
+/**
+ * Loops through each gateway group and kills states for lower-priority-tier gateways.
+ * Supports the same gateway at different tiers in different gateway groups.
+ */
+function remove_failover_states(): void {
+	// if killing states from the firewall itself, check for default failover gateway groups
+	$remove_states_default = config_get_path('system/remove_failover_states_default');
+	if ($remove_states_default) {
+		$default_gateways = [];
+
+		$default_gateway4 = config_get_path('gateways/defaultgw4', '');
+		if (!empty($default_gateway4)) {
+			$default_gateways[$default_gateway4] = null;
+		}
+		$default_gateway6 = config_get_path('gateways/defaultgw6', '');
+		if (!empty($default_gateway6)) {
+			$default_gateways[$default_gateway6] = null;
+		}
+	}
+
+	foreach (config_get_path('gateways/gateway_group', []) as $group) {
+		// skip if states don't need to be killed for this gateway group
+		if (!$remove_states_default && ($group['keep_failover_states'] == 'keep')) {
+			continue;
+		}
+
+		// make sure there are expected values and at least two gateways in the gateway group
+		if (!is_array($group['item']) || empty($group['item']) || (count($group['item']) < 2)) {
+			continue;
+		}
+		// build a list of gateway groups with gateway interfaces and tiers
+		$gateway_groups = [];
+		foreach ($group['item'] as $item) {
+			$gateway_item = explode("|", $item);
+			// at least a gateway name and tier is expected
+			if (count($gateway_item) < 2) {
+				continue;
+			}
+
+			if (!isset($gateways_states)) {
+				// get a list of all relevant gateway states
+				$gateways_states = return_gateways_status(true);
+			}
+
+			// only get online gateways
+			if ($gateways_states[$gateway_item[0]]['status'] == 'online') {
+				if (!isset($all_gateways)) {
+					// get a list of all relevant gateways
+					$all_gateways = get_gateways();
+				}
+
+				// get the gateway's interface and tier
+				$gateway_groups[$group['name']][$all_gateways[$gateway_item[0]]['interface']] = intval($gateway_item[1]);
+			}
+		}
+
+		// make sure there are at least two gateways in the gateway group being processed
+		if (empty($gateway_groups[$group['name']]) || (count($gateway_groups[$group['name']]) < 2)) {
+			continue;
+		}
+
+		// get a list of all assigned interfaces
+		if (!isset($all_interfaces)) {
+			require_once("interfaces_fast.inc");
+			$all_interfaces = convert_real_interface_to_friendly_interface_name_fast();
+		}
+
+		// get the interfaces of the default gateway group
+		if ($remove_states_default && array_key_exists($group['name'], $default_gateways)) {
+			$default_gateways[$group['name']] = $gateway_groups[$group['name']];
+		}
+
+		// build a list of interfaces to kill states on
+		$interfaces_to_kill = $all_interfaces;
+		foreach (array_keys($gateway_groups[$group['name']], min(array_values($gateway_groups[$group['name']]))) as $gateway_interface) {
+			// exclude the interface of the highest tier gateway(s)
+			unset($interfaces_to_kill[$gateway_interface]);
+			if ($remove_states_default) {
+				unset($default_gateways[$group['name']][$gateway_interface]);
+			}
+		}
+
+		// if all states are to be killed for this gateway group, skip only killing policy routing states
+		if ($remove_states_default && array_key_exists($group['name'], $default_gateways)) {
+			continue;
+		}
+
+		foreach (array_keys($interfaces_to_kill) as $interface) {
+			// specify the interface to avoid killing states for the higher-tier gateway(s)
+			mwexec_bg('/sbin/pfctl -M -i ' . escapeshellarg($interface) . ' -k label -k ' . escapeshellarg("gw:{$group['name']}") . ' -q');
+		}
+	}
+
+	// kill all states for the default failover gateway groups
+	if (!$remove_states_default) {
+		return;
+	}
+	foreach ($default_gateways as $gateway_name => $gateway_interfaces) {
+		if (empty($gateway_interfaces)) {
+			continue;
+		}
+
+		/* filtering for the address family allows states that have been created by user
+		   rules with a gateway of a different IP family on the same interface to remain */
+		if ($remove_states_default == 'ipfamily') {
+			$host_prefix = ($gateway_name == $default_gateway4) ? '-k 0.0.0.0/0' : '-k ::/0';
+		} else {
+			$host_prefix = '';
+		}
+		foreach (array_keys($gateway_interfaces) as $gateway_interface) {
+			mwexec_bg('/sbin/pfctl -M -i ' . escapeshellarg($gateway_interface) . " {$host_prefix} -q");
+		}
+	}
 }
 
 function get_dpinger_status($gwname, $action_disable = false) {
@@ -1816,7 +1963,7 @@ function validate_gateway($gateway_settings, $id = "", $parent_ip = "", $parent_
 	}
 	global $config, $gateway_state_kill_modes;
 
-	refresh_gateways_cache(); // make sure we're validating against a current gateway list
+	refresh_gateways(); // make sure we're validating against a current gateway list
 	$a_gateways = get_gateways(GW_CACHE_INDEXED);
 	$input_errors = array();
 
