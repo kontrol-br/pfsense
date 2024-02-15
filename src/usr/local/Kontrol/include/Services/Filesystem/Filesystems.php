@@ -21,7 +21,7 @@
 
 namespace Kontrol\Services\Filesystem;
 
-use pfSense\Services\Filesystem\Provider\{
+use Kontrol\Services\Filesystem\Provider\{
 	AbstractProvider,
 	SystemProvider
 };
