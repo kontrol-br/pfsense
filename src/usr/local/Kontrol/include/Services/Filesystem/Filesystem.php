@@ -19,7 +19,7 @@
  * limitations under the License.
  */
 
-namespace pfSense\Services\Filesystem;
+namespace Kontrol\Services\Filesystem;
 
 use Nette\Utils\{
 	Arrays,
@@ -43,7 +43,7 @@ final class Filesystem {
 
 	public function getBasename() {
 		$basename = $this->getPath();
-		
+
 		$parent = $this->getParentPath();
 
 		if (Strings::startsWith($basename, $parent)) {

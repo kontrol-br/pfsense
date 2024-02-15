@@ -19,7 +19,7 @@
  * limitations under the License.
  */
 
-namespace pfSense\Services\Filesystem;
+namespace Kontrol\Services\Filesystem;
 
 use pfSense\Services\Filesystem\Provider\{
 	AbstractProvider,

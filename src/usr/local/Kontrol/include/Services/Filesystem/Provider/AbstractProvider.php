@@ -19,7 +19,7 @@
  * limitations under the License.
  */
 
-namespace pfSense\Services\Filesystem\Provider;
+namespace Kontrol\Services\Filesystem\Provider;
 
 use mikehaertl\shellcommand\Command;
 
