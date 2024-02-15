@@ -1,4 +1,10 @@
 ./boot.config
+./boot/dtb
+./boot/kernel
+./boot/loader.conf
+./boot/loader.conf.local
+./boot/loader.rc.local
+./boot/modules
 ./cf/conf/config.xml
 ./cf/conf/enableserial_force
 ./cf/conf/trigger_initial_wizard
@@ -20,6 +26,7 @@
 ./etc/pfSense-rc.shutdown
 ./etc/platform
 ./etc/pwd.db
+./etc/rc
 ./etc/rc.conf
 ./etc/rc.ramdisk_functions.sh
 ./etc/spwd.db
