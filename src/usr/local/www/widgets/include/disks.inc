@@ -21,7 +21,7 @@
 
 require_once('vendor/autoload.php');
 
-use pfSense\Services\Filesystem\{
+use Kontrol\Services\Filesystem\{
 	Filesystem,
 	Filesystems,
 	Provider\SystemProvider,
@@ -37,7 +37,7 @@ $disks_widget_defaults = array(
 				'disk_filter' => null,
 				'autoshow_threshold' => 75);
 
-// Initialize the Filesystems service		
+// Initialize the Filesystems service
 $filesystems = new Filesystems();
 
 function disks_do_widget_settings_post($post, $user_settings) {
@@ -100,7 +100,7 @@ function disks_compose_widget_table($widget_config) {
 	$table->addHtml(disks_compose_widget_user_body($widget_config));
 
 	$table->addHtml(disks_compose_widget_tree_body());
-	
+
 	return $table->toHtml();
 }
 
@@ -209,12 +209,12 @@ function disks_compose_widget_user_body($widget_config) {
 	$disk_filter = explode(',', $widget_config['disk_filter']);
 
 	$autoshow_threshold = $widget_config['autoshow_threshold'];
-	
+
 	foreach ($filesystems->getNonRootFilesystems($disks_types) as $fs) {
 		if (in_array($fs->getPath(), $disk_filter)
 		    || (($autoshow_threshold != 0) && ($fs->getUsedPercent() >= $autoshow_threshold))) {
 			$has_user_row = true;
-		
+
 			$tr = Html::el('tr');
 
 			$tr->addHtml(
@@ -235,7 +235,7 @@ function disks_compose_widget_user_body($widget_config) {
 					->addHtml(
 						Html::el('span')
 							->setText("{$fs->getUsedPercent()}% of {$fs->getSize()} ({$fs->getType()})")));
-			
+
 			$tbody->addHtml($tr);
 		}
 	}
