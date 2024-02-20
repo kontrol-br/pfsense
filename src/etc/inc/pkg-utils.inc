@@ -1396,34 +1396,41 @@ function get_system_pkg_version($baseonly = false, $use_cache = true, $updates_o
 	return $result;
 }
 
-/* List available repos */
+/* // Function from version 2.7.2 and below */ /* List available repos */
 function pkg_list_repos() {
 	global $g;
 
-	$repo_base = "{$g['pkg_repos_path']}/{$g['product_name']}-repo";
-	$result = array();
-	$name_files = glob("{$repo_base}-*.name");
-	foreach ($name_files as $name_file) {
-		$repo_name = file_get_contents($name_file);
-		if ($repo_name == false || strlen($repo_name) <= 1) {
-			continue;
-		}
-		$repo_name_base = "{$repo_base}-{$repo_name}";
-		$descr_file = "{$repo_name_base}.descr";
+	$path = "/usr/local/share/{$g['product_name']}/pkg/repos";
+
+	$default_descr = @file_get_contents($path .
+	    "/{$g['product_name']}-repo.descr");
+
+	$default = array(
+	    'name' => 'Default',
+	    'path' => $path . "/{$g['product_name']}-repo.conf",
+	    'descr' => $default_descr
+	);
+
+	$result = array($default);
+
+	$conf_files = glob("{$path}/{$g['product_name']}-repo-*.conf");
+	foreach ($conf_files as $conf_file) {
+		$descr_file = preg_replace('/.conf$/', '.descr', $conf_file);
 		if (file_exists($descr_file)) {
-			$descr = file_get_contents($descr_file);
-			if ($descr == false) {
-				$descr = 'Unknown';
-			}
+			$descr_content = file($descr_file);
+			$descr = chop($descr_content[0]);
 		} else {
 			$descr = 'Unknown';
 		}
+		if (!preg_match('/-repo-(.*).conf/', $conf_file, $matches)) {
+			continue;
+		}
 		$entry = array(
-		    'name' => $repo_name,
-		    'path' => "{$repo_name_base}.conf",
+		    'name' => ucfirst(strtolower($matches[1])),
+		    'path' => $conf_file,
 		    'descr' => $descr
 		);
-		if (file_exists("{$repo_name_base}.default")) {
+		if (file_exists($conf_file . ".default")) {
 			$entry['default'] = true;
 		}
 		$result[] = $entry;
@@ -1431,7 +1438,6 @@ function pkg_list_repos() {
 
 	return $result;
 }
-
 function pkg_get_default_repo() {
 	$repos = pkg_list_repos();
 
