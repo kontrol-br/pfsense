@@ -1333,7 +1333,7 @@ function get_system_pkg_version($baseonly = false, $use_cache = true, $updates_o
 		$output = @file_get_contents($cache_file);
 	} else if ($rc != "0") {
 		$output = exec(
-		    "/usr/local/sbin/{$g['product_name']}-upgrade " . ($updates_only?'-c':'-C') , $_gc,
+		    "/usr/local/sbin/{$g['product_name']}-upgrade -c", $_gc,
 		    $rc);
 
 		if ($rc != 0 && $rc != 2) {
