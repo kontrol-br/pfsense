@@ -821,10 +821,7 @@ function captiveportal_prune_old_automac() {
 			if (isset($config['captiveportal'][$cpzone]['noconcurrentlogins'])) {
 				if (isset($tmpvoucherdb[$emac['username']])) {
 					$temac = config_get_path("captiveportal/{$cpzone}/passthrumac/{$tmpvoucherdb[$emac['username']]}");
-					$pipes = captiveportal_get_dn_passthru_pipes($temac['mac']);
-					if ($pipes) {
-						captiveportal_ether_delete_entry($temac['mac'], 'auth');
-					}
+					captiveportal_passthrumac_delete_entry($temac);
 					$writecfg = true;
 					captiveportal_logportalauth($temac['username'], $temac['mac'],
 					    $temac['ip'], "DUPLICATE {$temac['username']} LOGIN - TERMINATING OLD SESSION");
@@ -2359,25 +2356,53 @@ function captiveportal_write_usedmacs_db($usedmacs) {
 }
 
 function captiveportal_blocked_mac($mac) {
-	global $config, $g, $cpzone;
+	global $cpzone;
 
 	if (empty($mac) || !is_macaddr($mac)) {
 		return false;
 	}
 
-	if (!is_array($config['captiveportal'][$cpzone]['passthrumac'])) {
-		return false;
-	}
+	$mac = strtolower($mac);
+	$action = '';
+	$matched = false;
+	foreach (config_get_path("captiveportal/{$cpzone}/passthrumac", []) as $passthrumac) {
+		// assume the config entry contains a valid lowercase MAC address
+		list($mac_entry, $mac_entry_mask) = explode('/', $passthrumac['mac']);
+		if ($mac_entry_mask === null) {
+			$mac_entry_mask = 48;
+		}
 
-	foreach ($config['captiveportal'][$cpzone]['passthrumac'] as $passthrumac) {
-		if (($passthrumac['action'] == 'block') &&
-		    ($passthrumac['mac'] == strtolower($mac))) {
-			return true;
+		// Pad config MAC parts with 0 if needed
+		$mac_parts = [];
+		foreach (explode(':', $mac_entry) as $macpart) {
+			$mac_parts[] = str_pad($macpart, 2, '0', STR_PAD_LEFT);
+		}
+		$mac_entry_long = hexdec(implode($mac_parts));
+
+		// Pad client MAC parts with 0 if needed
+		$mac_parts = [];
+		foreach (explode(':', $mac) as $macpart) {
+			$mac_parts[] = str_pad($macpart, 2, '0', STR_PAD_LEFT);
+		}
+		$mac_long = hexdec(implode($mac_parts));
+
+		// check against the masked MAC address
+		if (($mac_long & (-1 << (48 - $mac_entry_mask))) == ($mac_entry_long & (-1 << (48 - $mac_entry_mask)))) {
+			$action = $passthrumac['action'];
+			$matched = true;
+		}
+
+		// a specific match takes precedence over a partial match
+		if ($mac_entry_mask == 48) {
+			break;
 		}
 	}
 
-	return false;
+	if ($matched && $action == 'block') {
+		return true;
+	}
 
+	return false;
 }
 
 /* Captiveportal Radius Accounting */
