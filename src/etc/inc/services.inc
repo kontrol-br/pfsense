@@ -1408,7 +1408,7 @@ function services_kea4_configure()
 			if (is_array($poolconf['winsserver']) && $poolconf['winsserver'][0] && ($poolconf['winsserver'][0] != $dhcpifconf['winsserver'][0])) {
 				$keapool['option-data'][] = [
 					'name' => 'netbios-name-servers',
-					'data' => implode(', ', $poolconf['winserver'])
+					'data' => implode(', ', $poolconf['winsserver'])
 				];
 				$keapool['option-data'][] = [
 					'name' => 'netbios-node-type',
@@ -1420,7 +1420,7 @@ function services_kea4_configure()
 			if (is_array($poolconf['ntpserver']) && $poolconf['ntpserver'][0] && ($poolconf['ntpserver'][0] != $dhcpifconf['ntpserver'][0])) {
 				$keapool['option-data'][] = [
 					'name' => 'ntp-servers',
-					'data' => implode(', ', $poolconf['ntpserver'])
+					'data' => implode(', ', array_filter($poolconf['ntpserver'], 'is_ipaddrv4'))
 				];
 			}
 
@@ -1548,7 +1548,7 @@ function services_kea4_configure()
 					if (!is_array($keapool['require-client-classes'])) {
 						$keapool['require-client-classes'] = [];
 					}
-					array_unshift($keapool['require-client-classes'], $name);
+					$keapool['require-client-classes'][] = $name;
 				}
 
 				if (!empty($poolconf['rootpath'])) {
@@ -1611,7 +1611,7 @@ function services_kea4_configure()
 		if (is_array($dhcpifconf['ntpserver']) && $dhcpifconf['ntpserver'][0]) {
 			$keasubnet['option-data'][] = [
 				'name' => 'ntp-servers',
-				'data' => implode(', ', $dhcpifconf['ntpserver'])
+				'data' => implode(', ', array_filter($dhcpifconf['ntpserver'], 'is_ipaddrv4'))
 			];
 		}
 
@@ -1719,7 +1719,7 @@ function services_kea4_configure()
 				if (!is_array($keasubnet['require-client-classes'])) {
 					$keasubnet['require-client-classes'] = [];
 				}
-				array_unshift($keasubnet['require-client-classes'], $name);
+				$keasubnet['require-client-classes'][] = $name;
 			}
 
 			if (!empty($dhcpifconf['rootpath'])) {
@@ -1850,7 +1850,7 @@ function services_kea4_configure()
 				if (is_array($sm['ntpserver']) && $sm['ntpserver'][0] && ($sm['ntpserver'][0] != $dhcpifconf['ntpserver'][0])) {
 					$keares['option-data'][] = [
 						'name' => 'ntp-servers',
-						'data' => implode(', ', $sm['ntpserver'])
+						'data' => implode(', ', array_filter($sm['ntpserver'], 'is_ipaddrv4'))
 					];
 				}
 

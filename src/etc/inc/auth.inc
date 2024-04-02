@@ -304,7 +304,7 @@ function & getUserEntry($name) {
 
 	if (isset($userindex[$name])) {
 		return $config['system']['user'][$userindex[$name]];
-	} elseif ($authcfg['type'] != "Local Database") {
+	} elseif ($authcfg['type'] != "Local Auth") {
 		$user = array();
 		$user['name'] = $name;
 		return $user;
@@ -644,6 +644,60 @@ function local_reset_accounts() {
 	foreach (config_get_path('system/group', []) as $group) {
 		local_group_set($group);
 	}
+}
+
+/* Determine if a given string is valid for use as a password.
+ * Returns an array of messages describing the problems.
+ */
+function validate_password($username, $password) {
+	$errors = [];
+
+	/* Rules for CE and Plus */
+	/* Disallow changing the password to the username. */
+	if ($username == $password) {
+		$errors[] = gettext("The password cannot be identical to the username.");
+	}
+	/* End rules for CE and Plus */
+
+	/* Plus-specific rules */
+	/* End Plus-specific rules */
+	return $errors;
+}
+/*
+ * Returns a string containing password hints that describe the rules validated
+ * by validate_password() above.
+ *
+ * $prefix: Value prepended to each array entry when returning the hint string.
+ * $suffix: Value appended to each array entry when returning the hint string.
+ */
+function get_validate_password_hints($prefix='', $suffix='<br/>') {
+	$hints = [];
+	/* Rules for CE and Plus */
+	$hints[] = gettext('Current NIST guidelines prioritize password length over complexity.');
+	$hints[] = gettext('The password cannot be identical to the username.');
+
+	/* Plus-specific rules */
+	/* End Plus-specific rules */
+
+	/* Add the prefix and suffix to each array entry. */
+	foreach ($hints as &$hint) {
+		$hint = $prefix . $hint . $suffix;
+	}
+
+	return implode('', $hints);
+}
+/*
+ * Test the password for a given user and produce warning messages if there are
+ * issues.
+ */
+function check_current_password($username) {
+	if (local_backed($username, $username)) {
+		return sprintf(gettext('Password is currently set to the username (%s).'), $username);
+	}
+	if (local_backed($username, g_get('factory_shipped_password'))) {
+		return sprintf(gettext('Password is currently set to the default value (%s).'), g_get('factory_shipped_password'));
+	}
+	return null;
 }
 
 function local_user_set(& $user) {

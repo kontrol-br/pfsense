@@ -1193,6 +1193,7 @@ function load_loader_conf($loader_conf = NULL, $local = false) {
 		    "hint.uart.1.flags",
 		    "net.link.ifqmaxlen",
 		    "hint.hwpstate_intel.0.disabled",
+		    "loader_conf_files",
 		    "machdep.hwpstate_pkg_ctrl",
 		    "net.pf.states_hashsize"
 		));
@@ -1275,6 +1276,9 @@ function setup_loader_settings($path = "", $upgrade = false) {
 	}
 
 	$data = load_loader_conf($loader_conf_file, false);
+
+	$data[] = 'loader_conf_files="/boot/loader.conf.lua"';
+
 	if ($serial_only === true) {
 		$data[] = 'boot_serial="YES"';
 		$data[] = 'console="comconsole"';
@@ -1547,6 +1551,10 @@ function is_radvd_enabled() {
 		$subnetv6 = gen_subnetv6($ifcfgipv6, $ifcfgsnv6);
 
 		if (!is_ipaddrv6($subnetv6)) {
+			continue;
+		}
+
+		if (config_get_path("dhcpdv6/{$if}/ramode", "disabled") == "disabled") {
 			continue;
 		}
 
@@ -3736,4 +3744,14 @@ function set_curlproxy(&$ch) {
 			curl_setopt($ch, CURLOPT_PROXYUSERPWD, "{$proxyuser}:{$proxypass}");
 		}
 	}
+}
+
+/*
+ * return the time difference in seconds.microseconds(6 digits) format between 2 DateTime objects
+ * @param DateTime $date1
+ * @param DateTime $date2
+ */
+
+function date_mdiff($date1, $date2){
+	return number_format(abs((float)$date1->format("U.u") - (float)$date2->format("U.u")), 6);
 }

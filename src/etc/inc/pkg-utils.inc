@@ -559,13 +559,13 @@ function get_pkg_info($pkgs = 'all', $remote_repo_usage_disabled = false,
  * to register itself in config.xml and also execute custom
  * install functions
  */
-function register_all_installed_packages() {
+function register_all_installed_packages(bool $force = false) {
 	$pkg_info = get_pkg_info('all', true, true);
 
 	foreach ($pkg_info as $pkg) {
 		pkg_remove_prefix($pkg['name']);
 
-		if (is_package_installed($pkg['name'])) {
+		if (!$force && is_package_installed($pkg['name'])) {
 			continue;
 		}
 
@@ -1317,11 +1317,14 @@ function get_system_pkg_version($baseonly = false, $use_cache = true, $updates_o
 	global $g;
 
 	if (!get_dnsavailable()) {
-		return false;
+		$result['pkg_version_error'] = "DNS servers not available";
+		return ($result);
 	}
 
 	$cache_file = g_get('version_cache_file');
 	$rc_file = $cache_file . '.rc';
+
+	$result['pkg_use_cache'] = $use_cache;
 
 	$rc = "";
 	if ($use_cache && file_exists($rc_file) &&
@@ -1332,12 +1335,14 @@ function get_system_pkg_version($baseonly = false, $use_cache = true, $updates_o
 	if ($rc == "2") {
 		$output = @file_get_contents($cache_file);
 	} else if ($rc != "0") {
-		$output = exec(
-		    "/usr/local/sbin/{$g['product_name']}-upgrade -c", $_gc,
-		    $rc);
-
+		$output = exec("/usr/local/sbin/{$g['product_name']}-upgrade ".
+		    ($updates_only?'-c':'-C') , $_gc, $rc);
+		if ($rc == 75) {
+			$result['pkg_busy'] = "1";
+		}
 		if ($rc != 0 && $rc != 2) {
-			return false;
+			$result['pkg_version_error'] = "{$g['product_name']}-upgrade error: $rc";
+			return ($result);
 		}
 
 		/* Update cache if it succeeded */
@@ -1356,6 +1361,7 @@ function get_system_pkg_version($baseonly = false, $use_cache = true, $updates_o
 	$meta_pkg = get_meta_pkg_name();
 
 	if (!$base_pkg || !$meta_pkg) {
+		$result['pkg_version_error'] = "no base pkg: $base_pkg:$meta_pkg";
 		return false;
 	}
 
