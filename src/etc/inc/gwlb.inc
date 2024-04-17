@@ -36,7 +36,7 @@ $gateway_state_kill_modes = array(
 );
 
 // Initialize the gateways cache variables
-define('GW_CACHE_DISABLED', 1); // include gateways that are disabled
+define('GW_CACHE_DISABLED', 1); // include gateways on disabled interfaces
 define('GW_CACHE_LOCALHOST', 2); // include "Null" entries for localhost IP addresses
 define('GW_CACHE_INACTIVE', 4); // include gateways on inactive interfaces
 define('GW_CACHE_INDEXED', 8); // index the returned array by integers instead of the name
@@ -63,7 +63,7 @@ function get_gateways(int $flags = 0): array {
 		$remove_disabled = false;
 		$remove_localhost = true;
 		$remove_inactive = false;
-	} elseif (boolval($flags & GW_CACHE_ALL)) {
+	} elseif (boolval(($flags & GW_CACHE_ALL) == GW_CACHE_ALL)) {
 		$remove_disabled = false;
 		$remove_localhost = false;
 		$remove_inactive = false;
