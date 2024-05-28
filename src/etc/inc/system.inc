@@ -261,7 +261,7 @@ function system_resolvconf_generate($dynupdate = false) {
 	fwrite($fd, "resolv_conf=\"/dev/null\"\n");
 	fclose($fd);
 
-	if (!platform_booting()) {
+	if (!is_platform_booting()) {
 		/* restart dhcpd (nameservers may have changed) */
 		if (!$dynupdate) {
 			services_dhcpd_configure();
@@ -665,7 +665,7 @@ function system_hosts_generate() {
 	}
 
 	/* restart dhcpleases */
-	if (!platform_booting()) {
+	if (!is_platform_booting()) {
 		system_dhcpleases_configure();
 	}
 
@@ -1631,7 +1631,7 @@ function system_routing_enable() {
 function system_webgui_start() {
 	global $g;
 
-	if (platform_booting()) {
+	if (is_platform_booting()) {
 		echo gettext("Starting webConfigurator...");
 	}
 
@@ -1646,6 +1646,7 @@ function system_webgui_start() {
 	if (config_get_path('system/webgui/protocol') == "https") {
 		// Ensure that we have a webConfigurator CERT
 		$cert = lookup_cert(config_get_path('system/webgui/ssl-certref'));
+		$cert = $cert['item'];
 		if (!is_array($cert) || !$cert['crt'] || !$cert['prv'] ||
 		    cert_chain_has_weak_digest($cert)) {
 			$cert = cert_create_selfsigned();
@@ -1679,7 +1680,7 @@ function system_webgui_start() {
 	/* start nginx */
 	$res = mwexec("/usr/local/sbin/nginx -c {$g['varetc_path']}/nginx-webConfigurator.conf");
 
-	if (platform_booting()) {
+	if (is_platform_booting()) {
 		if ($res == 0) {
 			echo gettext("done.") . "\n";
 		} else {
@@ -1898,6 +1899,7 @@ EOD;
 		$nginx_config .= "\t\tssl_session_tickets off;\n";
 		$nginx_config .= "\t\tssl_dhparam /etc/dh-parameters.4096;\n";
 		$cert_temp = lookup_cert(config_get_path('system/webgui/ssl-certref'));
+		$cert_temp = $cert_temp['item'];
 		if ((config_get_path('system/webgui/ocsp-staple') == true) or
 		    (cert_get_ocspstaple($cert_temp['crt']) == true)) {
 			$nginx_config .= "\t\tssl_stapling on;\n";
@@ -2091,7 +2093,7 @@ function system_timezone_configure() {
 
 	$syscfg = config_get_path('system');
 
-	if (platform_booting()) {
+	if (is_platform_booting()) {
 		echo gettext("Setting timezone...");
 	}
 
@@ -2101,7 +2103,7 @@ function system_timezone_configure() {
 	@file_put_contents("/var/db/zoneinfo", $timezone . "\n");
 	mwexec("/usr/sbin/tzsetup -r");
 
-	if (platform_booting()) {
+	if (is_platform_booting()) {
 		echo gettext("done.") . "\n";
 	}
 }
@@ -2208,7 +2210,7 @@ function system_ntp_setup_gps($serialport) {
 		return false;
 	}
 
-	init_config_arr(array('ntpd', 'gps'));
+	config_init_path('ntpd/gps');
 	$serialports = get_serial_ports(true);
 
 	if (!array_key_exists($serialport, $serialports)) {
@@ -2335,7 +2337,7 @@ function system_ntp_configure() {
 
 	safe_mkdir($statsdir);
 
-	init_config_arr(array('ntpd'));
+	config_init_path('ntpd');
 
 	// ntpd is disabled, just stop it and return
 	if (config_get_path('ntpd/enable') == 'disabled') {
@@ -2349,7 +2351,7 @@ function system_ntp_configure() {
 		return;
 	}
 
-	if (platform_booting()) {
+	if (is_platform_booting()) {
 		echo gettext("Starting NTP Server...");
 	}
 
@@ -2732,7 +2734,7 @@ function system_ntp_configure() {
 	// Note that we are starting up
 	log_error("NTPD is starting up.");
 
-	if (platform_booting()) {
+	if (is_platform_booting()) {
 		echo gettext("done.") . "\n";
 	}
 
@@ -2868,7 +2870,7 @@ function system_set_harddisk_standby() {
 	}
 
 	if (config_path_enabled('system', 'harddiskstandby')) {
-		if (platform_booting()) {
+		if (is_platform_booting()) {
 			echo gettext('Setting hard disk standby... ');
 		}
 
@@ -2886,13 +2888,13 @@ function system_set_harddisk_standby() {
 				foreach ($harddisks as $harddisk) {
 					mwexec("/sbin/camcontrol standby {$harddisk} -t {$standby}");
 				}
-				if (platform_booting()) {
+				if (is_platform_booting()) {
 					echo gettext("done.") . "\n";
 				}
-			} else if (platform_booting()) {
+			} else if (is_platform_booting()) {
 				echo gettext("failed!") . "\n";
 			}
-		} else if (platform_booting()) {
+		} else if (is_platform_booting()) {
 			echo gettext("failed!") . "\n";
 		}
 	}

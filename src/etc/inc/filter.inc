@@ -228,7 +228,7 @@ function filter_configure() {
 	 * NOTE: Check here for bootup status since this should not be triggered during bootup.
 	 *	 The reason is that rc.bootup calls filter_configure_sync directly which does this too.
 	 */
-	if (!platform_booting()) {
+	if (!is_platform_booting()) {
 		send_event("filter reload");
 	}
 }
@@ -335,19 +335,19 @@ function filter_configure_sync($delete_states_if_needed = true) {
 	}
 	/* Get interface list to work with. */
 	filter_generate_optcfg_array();
-	if (platform_booting() == true) {
+	if (is_platform_booting()) {
 		echo gettext("Configuring firewall");
 	}
 
 	/* generate aliases */
-	if (platform_booting() == true) {
+	if (is_platform_booting()) {
 		echo ".";
 	}
 	update_filter_reload_status(gettext("Creating aliases"));
 	$vpns_list = filter_get_vpns_list();
 	$aliases = filter_generate_aliases();
 	$gateways = filter_generate_gateways();
-	if (platform_booting() == true) {
+	if (is_platform_booting()) {
 		echo ".";
 	}
 	update_filter_reload_status(gettext("Generating Limiter rules"));
@@ -356,19 +356,19 @@ function filter_configure_sync($delete_states_if_needed = true) {
 	update_filter_reload_status(gettext("Generating NAT rules"));
 	/* generate nat rules */
 	$natrules = filter_nat_rules_generate();
-	if (platform_booting() == true) {
+	if (is_platform_booting()) {
 		echo ".";
 	}
 	update_filter_reload_status(gettext("Generating filter rules"));
 	/* generate pfctl rules */
 	$pfrules = filter_rules_generate();
 	/* generate altq, limiter */
-	if (platform_booting() == true) {
+	if (is_platform_booting()) {
 		echo ".";
 	}
 	update_filter_reload_status(gettext("Generating ALTQ queues"));
 	$altq_queues = filter_generate_altq_queues();
-	if (platform_booting() == true) {
+	if (is_platform_booting()) {
 		echo ".";
 	}
 	update_filter_reload_status(gettext("Loading filter rules"));
@@ -379,7 +379,7 @@ function filter_configure_sync($delete_states_if_needed = true) {
 		mwexec("/sbin/pfctl -d", true);
 		unlink_if_exists("{$g['tmp_path']}/filter_loading");
 		update_filter_reload_status(gettext("Filter is disabled.  Not loading rules."));
-		if (platform_booting() == true) {
+		if (is_platform_booting()) {
 			echo gettext("done.") . "\n";
 		}
 		unlock($filterlck);
@@ -451,13 +451,8 @@ function filter_configure_sync($delete_states_if_needed = true) {
 					config_get_path('system/adaptiveend'));
 	}
 
-	$max_states = 0;
-	if (is_numeric(config_get_path('system/maximumstates'))) {
-		/* User defined maximum states in Advanced menu. */
-		$max_states = config_get_path('system/maximumstates');
-	} else {
-		$max_states = pfsense_default_state_size();
-	}
+	/* User defined maximum states in Advanced menu. */
+	$max_states = (config_get_path('system/maximumstates', 0) > 0) ? config_get_path('system/maximumstates') : pfsense_default_state_size();
 	$limitrules .= "set limit states {$max_states}\n";
 	$limitrules .= "set limit src-nodes {$max_states}\n";
 
@@ -581,7 +576,7 @@ function filter_configure_sync($delete_states_if_needed = true) {
 
 	// get aliases names from config
 	$aliasesnames = array();
-	init_config_arr(array('aliases', 'alias'));
+	config_init_path('aliases/alias');
 	foreach (config_get_path('aliases/alias', []) as $alias) {
 		array_push($aliasesnames, $alias['name']);
 	}
@@ -598,7 +593,7 @@ function filter_configure_sync($delete_states_if_needed = true) {
 		$_grbg = exec("/sbin/pfctl -t " . escapeshellarg($alias) . " -T kill 2>/dev/null");
 	}
 
-	if (!platform_booting()) {
+	if (!is_platform_booting()) {
 		if (!empty($filterdns)) {
 			@file_put_contents("{$g['varetc_path']}/filterdns.conf", implode("", $filterdns));
 			unset($filterdns);
@@ -656,7 +651,7 @@ function filter_configure_sync($delete_states_if_needed = true) {
 		filter_tdr_install_cron(false);
 	}
 
-	if (platform_booting() == true) {
+	if (is_platform_booting()) {
 		echo ".";
 	}
 
@@ -675,11 +670,11 @@ function filter_configure_sync($delete_states_if_needed = true) {
 	}
 
 	update_filter_reload_status(gettext("Done"));
-	if (platform_booting() == true) {
+	if (is_platform_booting()) {
 		echo gettext("done.") . "\n";
 	}
 	
-	if (!platform_booting() && !$rules_loading) {
+	if (!is_platform_booting() && !$rules_loading) {
 		remove_failover_states();
 	}
 
@@ -1944,8 +1939,8 @@ function filter_nat_rules_automatic_tonathosts($with_descr = false) {
 	}
 
 	// OpenVPN CSO
-	init_config_arr(array('openvpn', 'openvpn-csc'));
-	foreach (config_get_path('openvpn/openvpn-csc') as $ovpnent) {
+	config_init_path('openvpn/openvpn-csc');
+	foreach (config_get_path('openvpn/openvpn-csc', []) as $ovpnent) {
 		if (is_array($ovpnent) && !isset($ovpnent['disable']) && !empty($ovpnent['tunnel_network'])) {
 			$tonathosts[] = implode('/', openvpn_gen_tunnel_network($ovpnent['tunnel_network']));
 			$descriptions[] = gettext("OpenVPN CSO");
@@ -2211,7 +2206,7 @@ EOD;
 function filter_nat_rules_generate() {
 	global $g, $FilterIflist;
 
-	init_config_arr(array('ipsec', 'client'));
+	config_init_path('ipsec/client');
 	$ipsec_client = config_get_path('ipsec/client');
 
 	$natrules = "no nat proto carp\n";
@@ -2452,7 +2447,7 @@ function filter_nat_rules_generate() {
 	case "hybrid":
 		$natrules .= "\n# Outbound NAT rules (manual)\n";
 		/* advanced outbound rules */
-		foreach (config_get_path('nat/outbound/rule') as $obent) {
+		foreach (config_get_path('nat/outbound/rule', []) as $obent) {
 			if (isset($obent['disabled'])) {
 				continue;
 			}
@@ -3670,7 +3665,7 @@ function filter_generate_user_rule($rule, & $extralabels = null) {
 	if ($rule['dnpipe'] <> "") {
 		if (!empty($dummynet_name_list[$rule['dnpipe']])) {
 			/* https://redmine.pfsense.org/issues/11636 */
-			foreach (config_get_path('dnshaper/queue') as $queue) {
+			foreach (config_get_path('dnshaper/queue', []) as $queue) {
 				if (($queue['name'] == $rule['dnpipe']) &&
 				    is_array($queue['bandwidth']['item'])) {
 					foreach ($queue['bandwidth']['item'] as $bw) {
@@ -4440,7 +4435,7 @@ function filter_rules_spoofcheck_generate($ifname, $ifcfg, $log) {
 	global $tracker;
 	if (config_path_enabled('system','developerspew')) {
 		$mt = microtime();
-		echo "filter_rules_spoofcheck_generate() being called for ${ifname} at {$mt}\n";
+		echo "filter_rules_spoofcheck_generate() being called for {$ifname} at {$mt}\n";
 	}
 	$ipfrules = "antispoof {$log['block']} for \${$ifcfg['descr']} ridentifier {$tracker}\n";
 	$tracker++;
@@ -4458,15 +4453,14 @@ function filter_rules_spoofcheck_generate($ifname, $ifcfg, $log) {
  *   none
  ******/
 function filter_tdr_install_cron($should_install) {
-	if (platform_booting() == true) {
+	if (is_platform_booting()) {
 		return;
 	}
 
-	init_config_arr(['cron','item']);
+	config_init_path('cron/item');
 	$x = 0;
 	$is_installed = false;
-	$cron_items = config_get_path('cron/item', []);
-	foreach ($cron_items as $item) {
+	foreach (config_get_path('cron/item', []) as $item) {
 		if (strstr($item['command'], "filter_configure_sync")) {
 			$is_installed = true;
 			break;
@@ -4485,8 +4479,7 @@ function filter_tdr_install_cron($should_install) {
 				$cron_item['wday'] = "*";
 				$cron_item['who'] = "root";
 				$cron_item['command'] = "/etc/rc.filter_configure_sync";
-				$cron_items[] = $cron_item;
-				config_set_path('cron/item', $cron_items);
+				config_set_path('cron/item/', $cron_item);
 				write_config(gettext("Installed 15 minute filter reload for Time Based Rules"));
 				configure_cron();
 			}

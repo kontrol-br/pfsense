@@ -296,7 +296,7 @@ function setup_gateways_monitor() {
 		stop_dpinger();
 		return;
 	}
-	if (platform_booting()) {
+	if (is_platform_booting()) {
 		echo "Setting up gateway monitors...";
 	}
 	$monitor_ips = array();
@@ -425,7 +425,7 @@ function setup_gateways_monitor() {
 			log_error(sprintf(gettext("Error starting gateway monitor for %s"), $gateway['name']));
 		}
 	}
-	if (platform_booting()) {
+	if (is_platform_booting()) {
 		echo "done.\n";
 	}
 
@@ -1097,7 +1097,7 @@ function return_gateways_array($disabled = false, $localhost = false, $inactive 
 							if (!$vtisubnet_spec || !is_array($vtisubnet_spec)) {
 								continue;
 							}
-							if (!isset($ph1ent['mobile']) && ($keyexchange == 'ikev1' || isset($ph1ent['splitconn']))) {
+							if (!isset($ph1ent['mobile']) && ($ph1ent['iketype'] == 'ikev1' || isset($ph1ent['splitconn']))) {
 								foreach ($vtisubnet_spec as $idx => $vtisub) {
 									if ($ifcfg['if'] == ipsec_get_ifname($ph1ent, $vtisub['reqid'])) {
 										// If this specific VTI remote is v4, then we can make a v4 gw
@@ -1242,7 +1242,7 @@ function return_gateways_array($disabled = false, $localhost = false, $inactive 
 							if (!$vtisubnet_spec || !is_array($vtisubnet_spec)) {
 								continue;
 							}
-							if (!isset($ph1ent['mobile']) && ($keyexchange == 'ikev1' || isset($ph1ent['splitconn']))) {
+							if (!isset($ph1ent['mobile']) && ($ph1ent['iketype'] == 'ikev1' || isset($ph1ent['splitconn']))) {
 								foreach ($vtisubnet_spec as $idx => $vtisub) {
 									if ($ifcfg['if'] == ipsec_get_ifname($ph1ent, $vtisub['reqid'])) {
 										// If this specific VTI remote is v6, then we can make a v6 gw
@@ -1479,7 +1479,7 @@ function setdefaultgateway($gw) {
 		if ($ipprotocol == 'inet') {
 			$gw['gateway'] = get_interface_gateway($gw['friendlyiface']);
 		} else {
-			$gw['gateway'] = get_interface_gateway_v6($$gw['friendlyiface']);
+			$gw['gateway'] = get_interface_gateway_v6($gw['friendlyiface']);
 		}
 	}
 	if ($ipprotocol == 'inet6' && !is_ipaddrv6($gw['gateway'])) {
@@ -1601,7 +1601,7 @@ function get_gwgroup_members_inner($group, $gateways_status, $gateways_arr, $vip
 	$tiers_count = count($tiers);
 	if ($tiers_count == 0) {
 		/* Oh dear, we have no members! Engage Plan B */
-		if (config_path_enabled('system', 'gw-debug') && (!platform_booting())) {
+		if (config_path_enabled('system', 'gw-debug') && (!is_platform_booting())) {
 			$msg = sprintf(gettext('Gateways status could not be determined, considering all as up/active. (Group: %s)'), $group['name']);
 			log_error($msg);
 		}
@@ -1693,7 +1693,7 @@ function return_gateway_groups_array($fixup = false) {
 			fixup_default_gateway("inet6", $gateways_status, $gateways_arr);
 		}
 	}
-	init_config_arr(array('gateways', 'gateway_group'));
+	config_init_path('gateways/gateway_group');
 	if (!empty(config_get_path('gateways/gateway_group'))) {
 		$viplist = get_configured_vip_list();
 		foreach (config_get_path('gateways/gateway_group', []) as $group) {
@@ -1737,7 +1737,7 @@ function lookup_gateway_or_group_by_name($gwname) {
 		}
 	}
 
-	init_config_arr(array('gateways', 'gateway_group'));
+	config_init_path('gateways/gateway_group');
 	foreach (config_get_path('gateways/gateway_group', []) as $gwg) {
 		if ($gwg['name'] == $gwname) {
 			$gwg['type'] = 'gatewaygroup';
@@ -2328,8 +2328,7 @@ function save_gateway($gateway_settings, $realid = "", $json = false) {
 		$gateway_settings = json_decode($gateway_settings, true);
 	}
 
-	init_config_arr(array('gateways', 'gateway_item'));
-	$a_gateway_item = config_get_path('gateways/gateway_item', []);
+	config_init_path('gateways/gateway_item');
 	$reloadif = "";
 	$gateway = array();
 
@@ -2381,29 +2380,30 @@ function save_gateway($gateway_settings, $realid = "", $json = false) {
 		$gateway['data_payload'] = $gateway_settings['data_payload'];
 	}
 
+	$a_gateway_item = config_get_path("gateways/gateway_item/{$realid}");
 	/* NOTE: If gateway ip is changed need to cleanup the old static interface route */
 	if ($gateway_settings['monitor'] != "dynamic" &&
-	    !empty($a_gateway_item[$realid]) &&
-	    is_ipaddr($a_gateway_item[$realid]['gateway']) &&
-	    $gateway['gateway'] != $a_gateway_item[$realid]['gateway'] &&
-	    isset($a_gateway_item[$realid]["nonlocalgateway"])) {
-		route_del($a_gateway_item[$realid]['gateway']);
+	    !empty($a_gateway_item) &&
+	    is_ipaddr($a_gateway_item['gateway']) &&
+	    $gateway['gateway'] != $a_gateway_item['gateway'] &&
+	    isset($a_gateway_item["nonlocalgateway"])) {
+		route_del($a_gateway_item['gateway']);
 	}
 
 	/* NOTE: If monitor ip is changed need to cleanup the old static route */
 	if ($gateway_settings['monitor'] != "dynamic" &&
-	    !empty($a_gateway_item[$realid]) &&
-	    is_ipaddr($a_gateway_item[$realid]['monitor']) &&
-	    $gateway_settings['monitor'] != $a_gateway_item[$realid]['monitor'] &&
-	    $gateway['gateway'] != $a_gateway_item[$realid]['monitor']) {
-		route_del($a_gateway_item[$realid]['monitor']);
+	    !empty($a_gateway_item) &&
+	    is_ipaddr($a_gateway_item['monitor']) &&
+	    $gateway_settings['monitor'] != $a_gateway_item['monitor'] &&
+	    $gateway['gateway'] != $a_gateway_item['monitor']) {
+		route_del($a_gateway_item['monitor']);
 	}
 
 	if ($gateway_settings['defaultgw'] == "yes" || $gateway_settings['defaultgw'] == "on") {
 		// a new default gateway is being saved.
 		$i = 0;
 		/* remove the default gateway bits for all gateways with the same address family */
-		foreach ($a_gateway_item as $gw) {
+		foreach (config_get_path('gateways/gateway_item', []) as $gw) {
 			if ($gateway['ipprotocol'] == $gw['ipprotocol']) {
 				if ($gw['interface'] != $gateway_settings['interface'] &&
 					($gw['name'] == config_get_path('gateways/defaultgw4', "") ||
@@ -2437,29 +2437,29 @@ function save_gateway($gateway_settings, $realid = "", $json = false) {
 		$gateway['loss_interval'] = $gateway_settings['loss_interval'];
 	}
 
+	$a_gateway_item = config_get_path("gateways/gateway_item/{$realid}");
 	/* reload IPsec and OpenVPN on gateway IP, 'Mark Gateway as Down', or 'Disabled' option change
 	 * see https://redmine.pfsense.org/issues/13076 */
-	if (!empty($a_gateway_item[$realid]) &&
-	    (isset($gateway['disabled']) ^ isset($a_gateway_item[$realid]['disabled'])) ||
-	    (!isset($a_gateway_item[$realid]['disabled']) &&
+	if (!empty($a_gateway_item) &&
+	    (isset($gateway['disabled']) ^ isset($a_gateway_item['disabled'])) ||
+	    (!isset($a_gateway_item['disabled']) &&
 	    ((($gateway['monitor'] != "dynamic") &&
-	    is_ipaddr($a_gateway_item[$realid]['gateway']) &&
-	    ($gateway['gateway'] != $a_gateway_item[$realid]['gateway'])) ||
-	    (isset($gateway['force_down']) ^ isset($a_gateway_item[$realid]['force_down']))))) {
+	    is_ipaddr($a_gateway_item['gateway']) &&
+	    ($gateway['gateway'] != $a_gateway_item['gateway'])) ||
+	    (isset($gateway['force_down']) ^ isset($a_gateway_item['force_down']))))) {
 		$reloadvpn = true;
 	}
 
 	/* when saving the manual gateway we use the attribute which has the corresponding id */
-	if (isset($realid) && $a_gateway_item[$realid]) {
-		$preserve_disabled = isset($a_gateway_item[$realid]['disabled']);
-		$a_gateway_item[$realid] = $gateway;
+	if (isset($realid) && $a_gateway_item) {
+		$preserve_disabled = isset($a_gateway_item['disabled']);
+		$a_gateway_item = $gateway;
 		if ($preserve_disabled) {
-			$a_gateway_item[$realid]['disabled'] = true;
+			$a_gateway_item['disabled'] = true;
 		}
-		config_set_path("gateways/gateway_item/{$realid}", $a_gateway_item[$realid]);
+		config_set_path("gateways/gateway_item/{$realid}", $a_gateway_item);
 	} else {
-		$a_gateway_item[] = $gateway;
-		config_set_path("gateways/gateway_item", $a_gateway_item);
+		config_set_path("gateways/gateway_item/", $gateway);
 	}
 	gateway_set_enabled($gateway_settings['name'], !isset($gateway_settings['disabled']));
 
@@ -2535,7 +2535,7 @@ function gateway_getgwtiername($gways, $idx) {
 
 	$gw = get_gateway_or_group_by_name($gwname, $gways);
 
-	init_config_arr(array('gateways'));
+	config_init_path('gateways');
 	$gw4 = config_get_path('gateways/defaultgw4', "");
 	$gw6 = config_get_path('gateways/defaultgw6', "");
 	if ($gw4 == $gwname || $gw6 == $gwname) {
@@ -2579,7 +2579,7 @@ function get_gateway_or_group_by_name($gwname, $gateways_arr) {
 		}
 	}
 
-	init_config_arr(array('gateways', 'gateway_group'));
+	config_init_path('gateways/gateway_group');
 	foreach (config_get_path('gateways/gateway_group', []) as $gwg) {
 		if ($gwg['name'] == $gwname) {
 			$gwg['type'] = 'gatewaygroup';
