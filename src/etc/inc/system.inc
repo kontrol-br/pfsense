@@ -1576,15 +1576,15 @@ function delete_static_route($id, $delete = false) {
 	}
 
 	if (file_exists("{$g['tmp_path']}/.system_routes.apply")) {
-		$toapplylist = unserialize(file_get_contents("{$g['tmp_path']}/.system_routes.apply"));
+		$toapplylist = unserialize_data(file_get_contents("{$g['tmp_path']}/.system_routes.apply"), []);
 	} else {
 		$toapplylist = array();
 	}
 
 	if (file_exists("{$g['tmp_path']}/staticroute_{$id}") &&
 	    file_exists("{$g['tmp_path']}/staticroute_{$id}_gw")) {
-		$delete_targets = unserialize(file_get_contents("{$g['tmp_path']}/staticroute_{$id}"));
-		$delgw = lookup_gateway_ip_by_name(unserialize(file_get_contents("{$g['tmp_path']}/staticroute_{$id}_gw")));
+		$delete_targets = unserialize_data(file_get_contents("{$g['tmp_path']}/staticroute_{$id}"), []);
+		$delgw = lookup_gateway_ip_by_name(unserialize_data(file_get_contents("{$g['tmp_path']}/staticroute_{$id}_gw")));
 		if (count($delete_targets)) {
 			foreach ($delete_targets as $dts) {
 				if (is_subnetv4($dts)) {
@@ -2334,6 +2334,7 @@ function system_ntp_configure() {
 	$driftfile = "/var/db/ntpd.drift";
 	$statsdir = "/var/log/ntp";
 	$gps_device = '/dev/gps0';
+	$ntp_keyid = config_get_path('ntpd/serverauthkeyid', '1');
 
 	safe_mkdir($statsdir);
 
@@ -2363,7 +2364,7 @@ function system_ntp_configure() {
 
 	/* set NTP server authentication key */
 	if (config_get_path('ntpd/serverauth') == 'yes') {
-		$ntpkeyscfg = "1 " . strtoupper(config_get_path('ntpd/serverauthalgo')) . " " . base64_decode(config_get_path('ntpd/serverauthkey')) . "\n";
+		$ntpkeyscfg = "{$ntp_keyid} " . strtoupper(config_get_path('ntpd/serverauthalgo')) . " " . base64_decode(config_get_path('ntpd/serverauthkey')) . "\n";
 		if (!@file_put_contents("{$g['varetc_path']}/ntp.keys", $ntpkeyscfg)) {
 			log_error(sprintf(gettext("Could not open %s/ntp.keys for writing"), g_get('varetc_path')));
 			return;
@@ -2380,9 +2381,9 @@ function system_ntp_configure() {
 	if (config_get_path('ntpd/serverauth') == 'yes') {
 		$ntpcfg .= "# Authentication settings \n";
 		$ntpcfg .= "keys /var/etc/ntp.keys \n";
-		$ntpcfg .= "trustedkey 1 \n";
-		$ntpcfg .= "requestkey 1 \n";
-		$ntpcfg .= "controlkey 1 \n";
+		$ntpcfg .= "trustedkey {$ntp_keyid} \n";
+		$ntpcfg .= "requestkey {$ntp_keyid} \n";
+		$ntpcfg .= "controlkey {$ntp_keyid} \n";
 		$ntpcfg .= "\n";
 	}
 
@@ -2558,6 +2559,11 @@ function system_ntp_configure() {
 		}
 		if (substr_count(config_get_path('ntpd/noselect'), $ts)) {
 			$ntpcfg .= ' noselect';
+		}
+		if (config_get_path('ntpd/serverauth') == 'yes' &&
+		    !substr_count(config_get_path('ntpd/ispool'), $ts) &&
+		    substr_count(config_get_path('ntpd/isauth'), $ts)) {
+			$ntpcfg .= " key {$ntp_keyid} ";
 		}
 		$ntpcfg .= "\n";
 	}
@@ -2877,12 +2883,9 @@ function system_set_harddisk_standby() {
 		$standby = config_get_path('system/harddiskstandby');
 		// Check for a numeric value
 		if (is_numeric($standby)) {
-			// Get only suitable candidates for standby; using get_smart_drive_list()
-			// from utils.inc to get the list of drives.
-			$harddisks = get_smart_drive_list();
+			// Get only suitable candidates for standby
+			$harddisks = get_drive_list(false);
 
-			// Since get_smart_drive_list() only matches ad|da|ada; lets put the check below
-			// just in case of some weird pfSense platform installs.
 			if (count($harddisks) > 0) {
 				// Iterate disks and run the camcontrol command for each
 				foreach ($harddisks as $harddisk) {

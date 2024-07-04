@@ -1153,10 +1153,10 @@ function package_reinstall_all() {
 		$current_repo_path = config_get_path('system/pkg_repo_conf_path');
 	}
 
-	if ($current_repo_path != $default_repo['path']) {
-		config_set_path('system/pkg_repo_conf_path', $default_repo['path']);
+	if (($current_repo_path != $default_repo['path']) && ($current_repo_path != $default_repo['name'])) {
+		config_set_path('system/pkg_repo_conf_path', $default_repo['name']);
 		write_config( "Configured default pkg repo after restore");
-		pkg_switch_repo($default_repo['path'], $default_repo['name']);
+		pkg_switch_repo();
 	}
 
 	/* wait for internet connection */
@@ -1474,7 +1474,7 @@ function pkg_get_repo_name($path) {
 
 	$default = $repos[0]['name'];
 	foreach ($repos as $repo) {
-		if ($repo['path'] == $path) {
+		if (in_array($path, [$repo['path'], $repo['name']])) {
 			return $repo['name'];
 		}
 		if (isset($repo['default'])) {
@@ -1488,24 +1488,41 @@ function pkg_get_repo_name($path) {
 
 /* Find the current or default package help file. */
 function pkg_get_repo_help() {
-	global $g;
-
-	$repo_conf_path = config_get_path('system/pkg_repo_conf_path');
 	/* Get the current or the default repo name. */
-	$repo_name = pkg_get_repo_name($repo_conf_path);
-	$repo_base = "{$g['pkg_repos_path']}/{$g['product_name']}-repo";
-	return "{$repo_base}-{$repo_name}.help";
+	$saved_repo = pkg_get_repo_name(config_get_path('system/pkg_repo_conf_path'));
+
+	$repos = pkg_list_repos();
+	foreach ($repos as $repo) {
+		if ($saved_repo == $repo['name']) {
+			$repo_conf_path = $repo['path'];
+			break;
+		}
+		if (isset($repo['default'])) {
+			$repo_conf_path = $repo['path'];
+		} elseif (!isset($repo_conf_path)) {
+			$repo_conf_path = $repo['path'];
+		}
+	}
+
+	if (!empty($repo_conf_path)) {
+		$repo_ext_pos = strrpos($repo_conf_path, '.conf'); 
+		if (($repo_ext_pos !== false) && (substr($repo_conf_path, $repo_ext_pos) == '.conf')) {
+			$repo_help_path = substr($repo_conf_path, 0, $repo_ext_pos);
+			if (!empty($repo_help_path)) {
+				return "{$repo_help_path}.help";
+			}
+		}
+	}
+
+	/* Default */
+	return '';
 }
 
 /* Switch between stable and devel repos */
-function pkg_switch_repo($repo_path, $repo_name) {
+function pkg_switch_repo() {
 	global $g;
 
 	safe_mkdir("/usr/local/etc/pkg/repos");
-	@unlink("/usr/local/etc/pkg/repos/{$g['product_name']}.conf");
-	$repo = "{$repo_path}/{$g['product_name']}-repo-{$repo_name}.conf";
-	@symlink($repo, "/usr/local/etc/pkg/repos/{$g['product_name']}.conf");
-
 	/* Do not fetch new settings, only setup the repo pkg.conf. */
 	mwexec("/usr/local/sbin/{$g['product_name']}-repo-setup -U");
 

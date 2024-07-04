@@ -418,6 +418,10 @@ function interface_vlan_configure(&$vlan, $flush = true, $skip_parent_mtu = fals
 	}
 
 	$tmpvlanif = pfSense_interface_create2("vlan");
+	if (!is_string($tmpvlanif)) {
+		log_error(sprintf(gettext('Failed to configure interface %1$s: Could not create temporary interface %2$s'), $vlan['vlanif'], 'vlan'));
+		return(NULL);
+	}
 	pfSense_interface_rename($tmpvlanif, $vlanif);
 	pfSense_ngctl_name("{$tmpvlanif}:", $vlanif);
 
@@ -711,12 +715,20 @@ function interface_bridge_configure(&$bridge, $checkmember = 0, $flush = true) {
 
 	if (!empty($bridge['bridgeif'])) {
 		pfSense_interface_destroy($bridge['bridgeif']);
-		pfSense_interface_create2($bridge['bridgeif']);
+		$tempifname = pfSense_interface_create2($bridge['bridgeif']);
+		if (!is_string($tempifname)) {
+			log_error(sprintf(gettext('Failed to configure interface %1$s: Could not create temporary interface %2$s'), $bridge['bridgeif'], $bridge['bridgeif']));
+			return;
+		}
 		$bridgeif = escapeshellarg($bridge['bridgeif']);
 	} else {
 		// if called directly, as interfaces_bridge_edit.php does, and bridgeif isn't set
 		// normally set by interfaces_bridge_configure, but not upon creation of new bridge
 		$bridgeif = pfSense_interface_create2("bridge");
+		if (!is_string($bridgeif)) {
+			log_error(sprintf(gettext('Failed to configure interface %1$s: Could not create temporary interface %2$s'), $bridge['bridgeif'], 'bridge'));
+			return;
+		}
 		$bridge['bridgeif'] = $bridgeif;
 	}
 
@@ -971,10 +983,18 @@ function interface_lagg_configure($lagg, $flush = true) {
 
 	if (is_platform_booting() || !(empty($lagg['laggif']))) {
 		pfSense_interface_destroy($lagg['laggif']);
-		pfSense_interface_create2($lagg['laggif']);
+		$tempifname = pfSense_interface_create2($lagg['laggif']);
+		if (!is_string($tempifname)) {
+			log_error(sprintf(gettext('Failed to configure interface %1$s: Could not create temporary interface %2$s'), $lagg['laggif'], $lagg['laggif']));
+			return -1;
+		}
 		$laggif = $lagg['laggif'];
 	} else {
 		$laggif = pfSense_interface_create2("lagg");
+		if (!is_string($laggif)) {
+			log_error(sprintf(gettext('Failed to configure interface %1$s: Could not create temporary interface %2$s'), $lagg['laggif'], 'lagg'));
+			return -1;
+		}
 	}
 
 	/* Check if MTU was defined for this lagg interface */
@@ -1071,10 +1091,18 @@ function interface_gre_configure(&$gre, $grekey = "", $flush = true) {
 
 	if (is_platform_booting() || !(empty($gre['greif']))) {
 		pfSense_interface_destroy($gre['greif']);
-		pfSense_interface_create2($gre['greif']);
+		$tempifname = pfSense_interface_create2($gre['greif']);
+		if (!is_string($tempifname)) {
+			log_error(sprintf(gettext('Failed to configure interface %1$s: Could not create temporary interface %2$s'), $gre['if'], $gre['greif']));
+			return -1;
+		}
 		$greif = $gre['greif'];
 	} else {
 		$greif = pfSense_interface_create2("gre");
+		if (!is_string($greif)) {
+			log_error(sprintf(gettext('Failed to configure interface %1$s: Could not create temporary interface %2$s'), $gre['if'], 'gre'));
+			return -1;
+		}
 	}
 
 	$tunnel_type = '';
@@ -1234,10 +1262,18 @@ function interface_gif_configure(&$gif, $gifkey = "", $flush = true) {
 
 	if (is_platform_booting() || !(empty($gif['gifif']))) {
 		pfSense_interface_destroy($gif['gifif']);
-		pfSense_interface_create2($gif['gifif']);
+		$tempifname = pfSense_interface_create2($gif['gifif']);
+		if (!is_string($tempifname)) {
+			log_error(sprintf(gettext('Failed to configure interface %1$s: Could not create temporary interface %2$s'), $gif['if'], $gif['gifif']));
+			return -1;
+		}
 		$gifif = $gif['gifif'];
 	} else {
 		$gifif = pfSense_interface_create2("gif");
+		if (!is_string($gifif)) {
+			log_error(sprintf(gettext('Failed to configure interface %1$s: Could not create temporary interface %2$s'), $gif['if'], 'gif'));
+			return -1;
+		}
 	}
 
 	/* Do not change the order here for more see gif(4) NOTES section. */
@@ -1538,6 +1574,12 @@ function interface_ipsec_vti_configure($ph1ent) {
 			if ($vtimtu != $currentvtimtu) {
 				mwexec("/sbin/ifconfig {$ipsecif} mtu {$vtimtu}");
 			}
+		}
+		/* Add the VTI to the interface cache directly because calling 'get_interface_arr(true)' is expensive.
+		   See: https://redmine.pfsense.org/issues/15449 */
+		global $interface_arr_cache;
+		if (is_array($interface_arr_cache) && !in_array($ipsecif, $interface_arr_cache)) {
+			$interface_arr_cache[] = $ipsecif;
 		}
 		system_routing_configure(convert_real_interface_to_friendly_interface_name($ipsecif));
 	}
@@ -4602,6 +4644,10 @@ function interface_6rd_configure($interface, $wancfg) {
 		pfSense_interface_destroy($stfiface);
 	}
 	$tmpstfiface = pfSense_interface_create2("stf");
+	if (!is_string($tmpstfiface)) {
+		log_error(sprintf(gettext('Failed to configure interface %1$s: Could not create temporary interface %2$s'), $wanif, 'stf'));
+		return false;
+	}
 	pfSense_interface_rename($tmpstfiface, $stfiface);
 	pfSense_interface_flags($stfiface, IFF_LINK2);
 	mwexec("/sbin/ifconfig {$stfiface} inet6 {$rd6prefix}/{$rd6prefixlen}");
@@ -4718,6 +4764,10 @@ function interface_6to4_configure($interface, $wancfg) {
 		pfSense_interface_destroy($stfiface);
 	}
 	$tmpstfiface = pfSense_interface_create2("stf");
+	if (!is_string($tmpstfiface)) {
+		log_error(sprintf(gettext('Failed to configure interface %1$s: Could not create temporary interface %2$s'), $wanif, 'stf'));
+		return;
+	}
 	pfSense_interface_rename($tmpstfiface, $stfiface);
 	pfSense_interface_flags($stfiface, IFF_LINK2);
 	mwexec("/sbin/ifconfig {$stfiface} inet6 {$stflanpr} prefixlen 16");
@@ -5077,7 +5127,7 @@ EOD;
 		}
 
 		if (file_exists("{$g['tmp_path']}/dhcp6c_ifs")) {
-			$dhcp6crealifs_run = unserialize(file_get_contents("{$g['tmp_path']}/dhcp6c_ifs"));
+			$dhcp6crealifs_run = unserialize_data(file_get_contents("{$g['tmp_path']}/dhcp6c_ifs"), []);
 		} else {
 			$dhcp6crealifs_run = array();
 		}
@@ -5628,7 +5678,7 @@ function convert_real_interface_to_friendly_interface_name($interface = "wan", $
 
 	/* XXX: For speed reasons reference directly the interface array */
 	config_init_path('interfaces');
-	$ifdescrs = config_get_path('interfaces');
+	$ifdescrs = config_get_path('interfaces', []);
 	//$ifdescrs = get_configured_interface_list(true);
 
 	foreach ($ifdescrs as $if => $ifname) {
@@ -7104,7 +7154,7 @@ function interfaces_staticarp_configure($if) {
 		echo "interfaces_staticarp_configure($if) being called $mt\n";
 	}
 
-	if (!config_path_enabled("interfaces/{$if}")) {
+	if (empty(config_get_path("interfaces/{$if}"))) {
 		return 0;
 	}
 

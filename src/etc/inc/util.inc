@@ -3106,8 +3106,13 @@ function route_add_or_change($target, $gw, $iface = '', $args = '',
 	}
 
 	if (empty($params)) {
-		log_error("route_add_or_change: Invalid gateway {$gw} and/or " .
-		    "network interface {$iface}");
+		if (!empty($gw) && !empty($iface)) {
+			log_error("route_add_or_change: Invalid gateway ({$gw}) and network interface was not found ({$iface})");
+		} elseif (!empty($gw)) {
+			log_error("route_add_or_change: Invalid gateway ({$gw})");
+		} else {
+			log_error("route_add_or_change: Network interface was not found ({$iface})");
+		}
 		return false;
 	}
 
@@ -3294,32 +3299,66 @@ function post_redirect($page, $params) {
 	print "</body></html>\n";
 }
 
-/* Locate disks that can be queried for S.M.A.R.T. data. */
-function get_smart_drive_list() {
+/**
+ * Locate disks that can be queried for S.M.A.R.T. data.
+ * 
+ * @param bool $check_controller If true (default), use the controller
+ *                               device name; otherwise use the
+ *                               original disk name.
+ * 
+ * @return array List of drive names
+ */
+function get_drive_list(bool $check_controller = true) {
+	// list of drives to return
+	$drive_list = [];
+
 	/* SMART supports some disks directly, and some controllers directly,
 	 * See https://redmine.pfsense.org/issues/9042 */
-	$supported_disk_types = array("ad", "da", "ada");
-	$supported_controller_types = array("nvme");
-	$disk_list = explode(" ", get_single_sysctl("kern.disks"));
-	foreach ($disk_list as $id => $disk) {
-		// We only want certain kinds of disks for S.M.A.R.T.
-		// 1 is a match, 0 is no match, False is any problem processing the regex
-		if (preg_match("/^(" . implode("|", $supported_disk_types) . ").*[0-9]{1,2}$/", $disk) !== 1) {
-			unset($disk_list[$id]);
-			continue;
-		}
-	}
-	foreach ($supported_controller_types as $controller) {
-		$devices = glob("/dev/{$controller}*");
-		if (!is_array($devices)) {
-			continue;
-		}
+	$supported_controllers = [
+		'nvme'
+	];
+
+	// get disk devices; ignore sub-devices
+	$devices = [];
+	preg_match_all('/\b(?P<disks>[[:alpha:]]+\d+)\b/', get_single_sysctl("kern.disks"), $devices);
+	if (!empty($devices['disks']) && is_array($devices['disks'])) {
+		// ignore duplicate matches
+		$devices = array_unique($devices['disks']);
 		foreach ($devices as $device) {
-			$disk_list[] = basename($device);
+			// get device info
+			$output = shell_exec("/usr/sbin/diskinfo -v /dev/{$device}");
+			if (empty($output)) {
+				continue;
+			}
+
+			// don't check the controller
+			if (!$check_controller) {
+				$drive_list[] = $device;
+				continue;
+			}
+
+			// get device controller
+			$device_controller = [];
+			preg_match('/^\s+(?P<controller>[\w\-]+)\s+# Attachment/im', $output, $device_controller);
+			if (!empty($device_controller['controller']) && is_string($device_controller['controller'])) {
+				$device_controller = $device_controller['controller'];
+
+				// supported controllers are queried directly
+				$regex_pattern = implode('|', array_values($supported_controllers));
+				$regex_pattern = "/\b(?:{$regex_pattern})\d+\b/";
+				if (preg_match($regex_pattern, $device_controller)) {
+					$drive_list[] = $device_controller;
+					// skip further processing for this device
+					continue;
+				}
+			}
+
+			// no attachment, or other controller
+			$drive_list[] = $device;
 		}
 	}
-	sort($disk_list);
-	return $disk_list;
+
+	return $drive_list;
 }
 
 // Validate a network address
@@ -3680,27 +3719,28 @@ function array_set_path(array &$arr, string $path, $value, $default = null) {
  * @param array  $arr        Array to search
  * @param string $path       Path with '/' separators
  * @param string $enable_key Optional alternative key value for the enable key
+ * @param mixed  $default    Value to return if the path is not found
  * 
- * @return bool true if $enable_key exists in the array at $path, and has a
- *              non-null value, otherwise false
+ * @return mixed|bool true if $enable_key exists in the array at $path, and has
+ *                    a non-null value, otherwise false; or $default if the
+ *                    path prefix does not exist.
  */
-function array_path_enabled(array &$arr, string $path, $enable_key = "enable") {
-	$el = array_get_path($arr, $path, []);
-	if (is_array($el) && isset($el[$enable_key])) {
-		return (true);
-	}
-	return (false);
+function array_path_enabled(array &$arr, string $path, $enable_key = "enable", $default = false) {
+	$el = array_get_path($arr, $path, $default);
+	return is_array($el) ? isset($el[$enable_key]) : $default;
 }
 
 /**
  * Remove a key from the nested array by path.
  * 
- * @param array  $arr  Array to search
- * @param string $path Path with '/' separators
+ * @param array  $arr     Array to search
+ * @param string $path    Path with '/' separators
+ * @param mixed  $default Value to return if the path is not found
  * 
- * @return null|array copy of the removed value or null
+ * @return mixed|array Copy of the removed value or null; or $default if the
+ *                     path prefix does not exist.
  */
-function array_del_path(array &$arr, string $path) {
+function array_del_path(array &$arr, string $path, $default = null) {
 	$vpath = explode('/', $path);
 	$vkey = array_pop($vpath);
 	$el =& $arr;
@@ -3711,12 +3751,12 @@ function array_del_path(array &$arr, string $path) {
 		if (is_array($el) && array_key_exists($key, $el)) {
 			$el =& $el[$key];
 		} else {
-			return null;
+			return $default;
 		}
 	}
 
 	if (!(is_array($el) && array_key_exists($vkey, $el))) {
-		return null;
+		return $default;
 	}
 
 	$ret = $el[$vkey];
@@ -4567,6 +4607,30 @@ function compare_files($f1, $f2) {
 	}
 	/* Return result of comparing hashes. */
 	return (hash_file('sha256', $f1) == hash_file('sha256', $f2));
+}
+
+/**
+ * Helper function for unserialize() with error handling.
+ * 
+ * @param ?string $path    Data string to unserialize
+ * @param mixed  $default Value to return in case of failure
+ * @param ?array  $options Options to pass to unserialize()
+ * 
+ * @return mixed $data The unserialized data
+ */
+function unserialize_data(?string $path, mixed $default = null, ?array $options = []):mixed {
+	if (empty($path) || !isset($options)) {
+		return $default;
+	}
+
+	$data = @unserialize($path, $options);
+
+	// check if the string was not unserialized
+	if (($data === false) && ($data == serialize(false))) {
+		return $default;
+	}
+
+	return $data;
 }
 
 ?>
