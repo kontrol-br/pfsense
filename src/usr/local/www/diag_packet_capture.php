@@ -400,11 +400,10 @@ $form_match_ethertype +=  array(
 	'arp' => '[ARP]'
 );
 $form_match_protocol += array(
-	'icmp' => '[ICMPv4]',
-	'icmp6' => '[ICMPv6]',
+	'ping' => '[Ping]',
+	'ipsec' => '[IPsec]',
 	'tcp' => '[TCP]',
 	'udp' => '[UDP]',
-	'ipsec' => '[IPsec]',
 	'carp' => '[CARP]',
 	'pfsync' => '[pfsync]',
 	'ospf' => '[OSPF]'
