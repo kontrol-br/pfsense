@@ -37,7 +37,7 @@ $pglinks = array("", "interfaces_groups.php", "@self");
 $shortcut_section = "interfaces";
 
 config_init_path('ifgroups/ifgroupentry');
-$id = $_REQUEST['id'];
+$id = is_numericint($_REQUEST['id']) ? $_REQUEST['id'] : null;
 
 $this_ifgroup_config = isset($id) ? config_get_path("ifgroups/ifgroupentry/{$id}") : null;
 if ($this_ifgroup_config) {
@@ -131,7 +131,7 @@ if ($_POST['save']) {
 			if (is_array($filter_rule_config)) {
 				foreach ($filter_rule_config as &$rule) {
 					if (isset($rule['floating'])) {
-						$rule_ifs = explode(",", $rule['interface']);
+						$rule_ifs = array_filter(explode(",", $rule['interface']));
 						$rule_changed = false;
 						foreach ($rule_ifs as $rule_if_id => $rule_if) {
 							if ($rule_if == $this_ifgroup_config['ifname']) {

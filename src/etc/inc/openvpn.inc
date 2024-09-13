@@ -854,7 +854,7 @@ function openvpn_reconfigure($mode, $settings) {
 		mwexec("/sbin/ifconfig " . escapeshellarg($devname) . " group openvpn");
 
 		$ifname = convert_real_interface_to_friendly_interface_name($devname);
-		$grouptmp = link_interface_to_group($ifname);
+		$grouptmp = (!empty($ifname)) ? link_interface_to_group($ifname) : null;
 		if (!empty($grouptmp)) {
 			array_walk($grouptmp, 'interface_group_add_member');
 		}
@@ -1678,15 +1678,14 @@ function openvpn_resync_csc($settings) {
 	}
 
 	// Reset options
-	if (isset($settings['override_options']) && ($settings['override_options'] == 'push_reset')) {
+	if (isset($settings['push_reset'])) {
 		if (isset($settings['keep_minimal'])) {
 			$auto_config_gateway4 = true;
 			$auto_config_gateway6 = true;
 			$auto_config_topology = true;
 		}
 		$conf .= "push-reset\n";
-	}
-	if (!empty($settings['remove_options'])) {
+	} elseif (!empty($settings['remove_options'])) {
 		foreach (explode(',', $settings['remove_options']) as $option) {
 			if (isset($settings['keep_minimal']) && ($option == 'remove_route')) {
 				$auto_config_gateway4 = true;
@@ -1695,9 +1694,11 @@ function openvpn_resync_csc($settings) {
 			$options = match ($option) {
 				'remove_route' => 'route',
 				'remove_iroute' => 'iroute',
+				'remove_redirect_gateway' => 'redirect-gateway',
 				'remove_inactive' => 'inactive',
 				'remove_ping' => 'ping',
 				'remove_ping_action' => ['ping-restart', 'ping-exit'],
+				'remove_blockoutsidedns' => 'block-outside-dns',
 				'remove_dnsdomain' => '"dhcp-option DOMAIN"',
 				'remove_dnsservers' => '"dhcp-option DNS"',
 				'remove_ntpservers' => '"dhcp-option NTP"',
@@ -1924,6 +1925,8 @@ function openvpn_resync_all($interface = "", $protocol = "") {
 		/* configure OpenVPN-parent QinQ interfaces after creating OpenVPN interfaces
 		 * see https://redmine.pfsense.org/issues/11662 */
 		if (is_platform_booting()) {
+			/* Refresh the cache; the parent interface may not yet exist in the cache. */
+			get_interface_arr(true);
 			interfaces_qinq_configure(true);
 			/* Configure all qinq interface addresses and add them to their
 			 * bridges. See https://redmine.pfsense.org/issues/13225,

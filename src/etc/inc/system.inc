@@ -1875,7 +1875,7 @@ function system_generate_nginx_config($filename,
 	}
 
 	if ($captive_portal !== false) {
-		$cp_interfaces = explode(",", config_get_path("captiveportal/{$captive_portal}/interface"));
+		$cp_interfaces = array_filter(explode(",", config_get_path("captiveportal/{$captive_portal}/interface")));
 		$cp_hostcheck = "";
 		foreach ($cp_interfaces as $cpint) {
 			$cpint_ip = get_interface_ip($cpint);
@@ -2804,11 +2804,13 @@ function system_ntp_configure() {
 
 
 	if (empty(config_get_path('ntpd/interface'))) {
-		$interfaces =
-			explode(",",
-					config_get_path('installedpackages/openntpd/config/0/interface', ''));
+		$interfaces = config_get_path('installedpackages/openntpd/config/0/interface', '');
 	} else {
-		$interfaces = explode(",", config_get_path('ntpd/interface'));
+		$interfaces = config_get_path('ntpd/interface', '');
+	}
+	// avoid an array with a single empty value
+	if (!empty(trim($interfaces))) {
+		$interfaces = array_filter(explode(",", config_get_path('ntpd/interface', '')));
 	}
 
 	if (is_array($interfaces) && count($interfaces)) {

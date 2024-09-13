@@ -117,10 +117,8 @@ foreach ($iflist as $ifent => $ifname) {
 	if (!is_ipaddrv4($oc['ipaddr']) || empty($oc['subnet'])) {
 		continue;
 	}
-	if (config_path_enabled("dhcpd/{$ifent}") ||
-	    !config_path_enabled('kea', 'hidedisabled')) {
-		$tab_array[] = array($ifname, false, "services_dhcp.php?if={$ifent}");
-	}
+
+	$tab_array[] = array($ifname, false, "services_dhcp.php?if={$ifent}");
 	$tabscounter++;
 }
 
@@ -131,33 +129,6 @@ if ($tabscounter === 0) {
 display_top_tabs($tab_array);
 
 $form = new Form();
-
-$section = new Form_Section(gettext('General Settings'));
-
-$group = new Form_Group(gettext('Enabled Interfaces'));
-$interfaces = new Form_Select(
-	'interface',
-	gettext('Enabled Interfaces'),
-	$subnets['enabled'],
-	$subnets['available'],
-	true
-);
-if (config_path_enabled('dhcrelay')) {
-	$interfaces->setAttribute('disabled', true);
-}
-
-$group->add($interfaces);
-$group->setHelp(gettext('Interfaces must have a static IPv4 address.'));
-$section->add($group);
-
-$section->addInput(new Form_Checkbox(
-	'hidedisabled',
-	gettext('Hide Disabled'),
-	gettext('Hide disabled interfaces'),
-	array_path_enabled($pconfig, '', 'hidedisabled'),
-))->setHelp(gettext('Hide interfaces that are not enabled to serve DHCP clients.'));
-
-$form->add($section);
 
 $section = new Form_Section(gettext('High Availability'));
 
@@ -412,11 +383,6 @@ events.push(function() {
 
 	$('#btnadvopts').on('click', function() {
 		show_advopts(false);
-	});
-
-	// Save the form
-	$('#saveform').on('click', function () {
-		$(form).submit();
 	});
 
 	update_tls_section();

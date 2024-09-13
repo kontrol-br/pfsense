@@ -1937,10 +1937,10 @@ function log_error($error) {
 * RESULT
 *   null
 ******/
-function log_auth($error) {
+function log_auth($error, $force_quiet = false) {
 	global $g;
 	$page = $_SERVER['SCRIPT_NAME'];
-	$level = config_path_enabled('system/webgui', 'quietlogin') ? LOG_NOTICE|LOG_AUTH : LOG_AUTH;
+	$level = ($force_quiet || config_path_enabled('system/webgui', 'quietlogin')) ? LOG_NOTICE|LOG_AUTH : LOG_AUTH;
 	syslog($level, "{$page}: {$error}");
 	if (g_get('debug')) {
 		syslog(LOG_WARNING, var_export(debug_backtrace()));
@@ -2920,7 +2920,7 @@ function is_dynamic_route(string $target, string $ipprotocol = ''): bool {
 	/* check for the PROTO* flag instead of STATIC
 	 * see https://redmine.pfsense.org/issues/14717
 	 * mwexec() returns false if the flag exists, so invert it */
-	if (!mwexec("/sbin/route -n{$inet} get " . escapeshellarg($target) . " 2>/dev/null | /usr/bin/egrep 'flags: <.*PROTO.*>'")) {
+	if (!mwexec("/sbin/route -n{$inet} get " . escapeshellarg($target) . " 2>/dev/null | /usr/bin/egrep 'flags: <.*PROTO.*>'", true)) {
 		return true;
 	}
 
@@ -3148,7 +3148,7 @@ function route_add_or_change($target, $gw, $iface = '', $args = '',
 function set_ipv6routes_mtu($interface, $mtu) {
 	$ipv6mturoutes = array();
 	$if = convert_real_interface_to_friendly_interface_name($interface);
-	if (!config_get_path("interfaces/{$if}/ipaddrv6")) {
+	if (empty($if) || !config_get_path("interfaces/{$if}/ipaddrv6")) {
 		return;
 	}
 	$a_gateways = get_gateways();
@@ -3641,21 +3641,43 @@ function array_get_path(array &$arr, string $path, $default = null) {
  * @param mixed  $arr  Top of array
  * @param string $path Path with '/' separators
  */
-function array_init_path(mixed &$arr, ?string $path)
-{
+function array_init_path(mixed &$arr, ?string $path) {
+	$value = [];
+	$vpath = explode('/', $path);
+
+	// get the path's leaf node; ignore trailing and contiguous forward-slashes
+	do {
+		$vkey = array_pop($vpath);
+	} while (isset($vkey) && (mb_strlen($vkey) == 0));
+
+	// make sure $arr is always an array
 	if (!is_array($arr)) {
-		$arr = [];
+		$arr = $value;
 	}
-	if (is_null($path)) {
-		return;
+
+	if ($vkey == null) {
+		// path is root, nothing else to do
+		return true;
 	}
-	$tmp = &$arr;
-	foreach (explode('/', $path) as $key) {
-		if (!is_array($tmp[$key])) {
-			$tmp[$key] = [];
+
+	// traverse the array and replace any scalars along the path
+	$el = &$arr;
+	foreach ($vpath as $key) {
+		if (mb_strlen($key) == 0) {
+			continue;
 		}
-		$tmp = &$tmp[$key];
+		if (!array_key_exists($key, $el) || !is_array($el[$key])) {
+			$el[$key] = [];
+		}
+		$el = &$el[$key];
 	}
+
+	// set the leaf node value
+	if (!array_key_exists($vkey, $el) || !is_array($el[$vkey])) {
+		$el[$vkey] = $value;
+	}
+	
+	return true;
 }
 
 /**

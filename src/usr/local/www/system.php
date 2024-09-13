@@ -45,7 +45,7 @@ $pconfig['dnsserver'] = config_get_path('system/dnsserver');
 $arr_gateways = get_gateways();
 
 // set default columns to two if unset
-if (!config_path_enabled('system/webgui', 'dashboardcolumns')) {
+if (!is_numericint(config_get_path('system/webgui/dashboardcolumns'))) {
 	config_set_path('system/webgui/dashboardcolumns', 2);
 }
 
@@ -66,7 +66,7 @@ $dnsgw_counter = 1;
 
 while (config_get_path("system/dns{$dnsgw_counter}gw") !== null) {
 	$pconfig_dnsgw_counter = $dnsgw_counter - 1;
-	$pconfig["dnsgw{$pconfig_dnsgw_counter}"] = config_get_path("system/dns{$dnsgw_counter}host");
+	$pconfig["dnsgw{$pconfig_dnsgw_counter}"] = config_get_path("system/dns{$dnsgw_counter}gw");
 	$dnsgw_counter++;
 }
 

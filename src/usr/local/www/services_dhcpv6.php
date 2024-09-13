@@ -687,11 +687,9 @@ if ($tabscounter == 0) {
 	exit;
 }
 
-if (dhcp_is_backend('kea')):
 if ($dhcrelay_enabled) {
 	print_info_box(gettext('DHCPv6 Relay is currently enabled. DHCPv6 Server canot be enabled while the DHCPv6 Relay is enabled on any interface.'), 'danger', false);
 }
-endif;
 
 display_top_tabs($tab_array);
 
@@ -699,7 +697,6 @@ $form = new Form();
 
 $section = new Form_Section(gettext('General DHCPv6 Options'));
 
-if (dhcp_is_backend('isc')):
 $section->addInput(new Form_StaticText(
 	gettext('DHCP Backend'),
 	match (dhcp_get_backend()) {
@@ -721,23 +718,13 @@ if (!is_numeric($pool) && !($act === 'newpool')) {
 		$section->addInput(new Form_Checkbox(
 			'enable',
 			gettext('Enable'),
-			sprintf(gettext('Enable DHCPv6 server on %s interface'), htmlspecialchars($iflist[$if])),
+			sprintf(gettext('Enable DHCPv6 server on %s interface'), $iflist[$if]),
 			$pconfig['enable']
 		));
 	}
 } else {
 	print_info_box(gettext('Editing pool-specific options. To return to the Interface, click its tab above.'), 'info', false);
 }
-endif; /* dhcp_is_backend('isc') */
-
-if (dhcp_is_backend('kea')):
-$form->addGlobal(new Form_Input(
-	'enable',
-	null,
-	'hidden',
-	$pconfig['enable'] ? 'yes' : 'no'
-));
-endif; /* dhcp_is_backend('kea') */
 
 $section->addInput(new Form_Select(
 	'denyunknown',
@@ -873,7 +860,7 @@ if (!is_numeric($pool) && !($act === 'newpool')) {
 	$btnaddpool = new Form_Button(
 		'btnaddpool',
 		gettext('Add Address Pool'),
-		'services_dhcpv6.php?if=' . htmlspecialchars($if) . '&act=newpool',
+		'services_dhcpv6.php?if=' . $if . '&act=newpool',
 		'fa-solid fa-plus'
 	);
 	$btnaddpool->addClass('btn-success');

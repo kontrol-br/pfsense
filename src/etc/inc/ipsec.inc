@@ -1784,7 +1784,7 @@ function ipsec_setup_strongswan() {
 			$ssconf['charon']['plugins']['xauth-generic'] = array();
 			$ssconf['charon']['plugins']['xauth-generic']['script'] = "/etc/inc/ipsec.auth-user.php";
 			$authcfgs = array();
-			foreach (explode(",", config_get_path('ipsec/client/user_source')) as $authcfg) {
+			foreach (array_filter(explode(",", config_get_path('ipsec/client/user_source'))) as $authcfg) {
 				$authcfgs[] = ($authcfg == "system") ? "Local Database" : $authcfg;
 			}
 			$ssconf['charon']['plugins']['xauth-generic']['authcfg'] = implode(",", $authcfgs);
@@ -2077,7 +2077,7 @@ function ipsec_setup_routes($interface, $family, $sourcehost, $duplicates) {
 		}
 	}
 	if ($family == 'inet' && !empty($ifacesuse) &&
-	    interface_has_gateway($vpninterface)) {
+	    !empty($vpninterface) && interface_has_gateway($vpninterface)) {
 		$gatewayip = get_interface_gateway($vpninterface);
 		$interfaceip = get_interface_ip($vpninterface);
 		$subnet_bits = get_interface_subnet($vpninterface);
@@ -2092,7 +2092,7 @@ function ipsec_setup_routes($interface, $family, $sourcehost, $duplicates) {
 			route_add_or_change($sourcehost, $gatewayip);
 		}
 	} else if ($family == 'inet6' && !empty($ifacesuse) &&
-	    interface_has_gatewayv6($vpninterface)) {
+	    !empty($vpninterface) && interface_has_gatewayv6($vpninterface)) {
 		$gatewayip = get_interface_gateway_v6($vpninterface);
 		$interfaceip = get_interface_ipv6($vpninterface);
 		$subnet_bits = get_interface_subnetv6($vpninterface);

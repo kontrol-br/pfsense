@@ -60,6 +60,10 @@ if (empty($argument)) {
 	$interface_real = get_real_interface();
 } else {
 	$interface = convert_real_interface_to_friendly_interface_name($argument);
+	if (empty($interface)) {
+		log_error("Interface is unassigned, nothing to do.");
+		return;
+	}
 	$interface_real = $argument;
 }
 

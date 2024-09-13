@@ -323,7 +323,7 @@ function filter_delete_states_for_down_gateways() {
 				$message = gettext("GW States: Killing states for") . " {$what_to_kill}: {$gateway['name']}, {$gwip}";
 				update_filter_reload_status($message);
 				log_error($message);
-				mwexec("/sbin/pfctl -k gateway -k " . escapeshellarg($gwip));
+				mwexec("/sbin/pfctl -M -k gateway -k " . escapeshellarg($gwip));
 			}
 		}
 	}
@@ -441,6 +441,13 @@ function filter_configure_sync($delete_states_if_needed = true) {
 		$timeo = config_get_path("system/tcp{$typ}timeout");
 		if (is_numericint($timeo)) {
 				$timeoutlist .= " tcp.{$typ} {$timeo} ";
+			}
+	}
+	// SCTP timeouts
+	foreach (["first", "opening", "established", "closing", "closed"] as $typ) {
+		$timeo = config_get_path("system/sctp{$typ}timeout");
+		if (is_numericint($timeo)) {
+				$timeoutlist .= " sctp.{$typ} {$timeo} ";
 			}
 	}
 	// UDP timeouts
@@ -1216,7 +1223,7 @@ function filter_get_vpns_list() {
 			}
 		}
 		foreach (config_get_path('ipsec/phase2', []) as $ph2ent) {
-			if ((!$ph2ent['mobile']) && ($ph2ent['mode'] != 'transport') &&
+			if ((!isset($ph2ent['mobile'])) && ($ph2ent['mode'] != 'transport') &&
 				!isset($ph2ent['disabled'])) {
 				if (!is_array($ph2ent['remoteid'])) {
 					continue;
@@ -4808,7 +4815,7 @@ function filter_generate_ipsec_rules($log = array()) {
 			} else {
 				$parentinterface = $ph1ent['interface'];
 			}
-			if (empty($FilterIflist[$parentinterface]['descr'])) {
+			if (empty($parentinterface) || empty($FilterIflist[$parentinterface]['descr'])) {
 				$ipfrules .= "# Could not locate interface for IPsec: {$descr}\n";
 				continue;
 			}

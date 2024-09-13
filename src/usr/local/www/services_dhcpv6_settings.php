@@ -136,10 +136,7 @@ foreach ($iflist as $ifent => $ifname) {
 		$active = false;
 	}
 
-	if (config_path_enabled("dhcpdv6/{$ifent}") ||
-	    !config_path_enabled('kea6', 'hidedisabled')) {
-		$tab_array[] = array($ifname, $active, "services_dhcpv6.php?if={$ifent}");
-	}
+	$tab_array[] = array($ifname, $active, "services_dhcpv6.php?if={$ifent}");
 	$tabscounter++;
 }
 
@@ -150,33 +147,6 @@ if ($tabscounter === 0) {
 display_top_tabs($tab_array);
 
 $form = new Form();
-
-$section = new Form_Section(gettext('General Settings'));
-
-$group = new Form_Group(gettext('Enabled Interfaces'));
-$interfaces = new Form_Select(
-	'interface',
-	gettext('Enabled Interfaces'),
-	$prefixes['enabled'],
-	$prefixes['available'],
-	true
-);
-if ($dhcrelay_enabled) {
-	$interfaces->setAttribute('disabled', true);
-}
-
-$group->add($interfaces);
-$group->setHelp(gettext('Interfaces must have a static IPv6 address.'));
-$section->add($group);
-
-$section->addInput(new Form_Checkbox(
-	'hidedisabled',
-	gettext('Hide Disabled'),
-	gettext('Hide disabled interfaces'),
-	array_path_enabled($pconfig, '', 'hidedisabled'),
-))->setHelp(gettext('Hide interfaces that are not enabled to serve DHCPv6 clients.'));
-
-$form->add($section);
 
 $section = new Form_Section(gettext('High Availability'));
 
@@ -431,11 +401,6 @@ events.push(function() {
 
 	$('#btnadvopts').on('click', function() {
 		show_advopts(false);
-	});
-
-	// Save the form
-	$('#saveform').on('click', function () {
-		$(form).submit();
 	});
 
 	update_tls_section();

@@ -350,7 +350,7 @@ if (isset($_REQUEST['add']) && isset($_REQUEST['if_add'])) {
 	}
 } else {
 	unset($delbtn);
-	if (!empty($_POST['del'])) {
+	if (!empty($_POST['del']) && is_string(key($_POST['del']))) {
 		$delbtn = key($_POST['del']);
 	}
 

@@ -109,15 +109,10 @@ if (is_platform_booting() && is_cli_sapi() &&
 			}
 		}
 		echo ".";
-		if (!$cfgdevice) {
-			$last_backup = discover_last_backup();
-			if ($last_backup) {
-				log_error(gettext("No config.xml found, attempting last known config restore."));
-				file_notice("config.xml", gettext("No config.xml found, attempting last known config restore."), "pfSenseConfigurator", "");
-				restore_backup("/cf/conf/backup/{$last_backup}");
-			} else {
-				log_error(gettext("No config.xml or config backups found, resetting to factory defaults."));
-				restore_backup('/conf.default/config.xml');
+		if (!$cfgdevice && !config_read_file(true)) {
+			log_error(gettext("No config.xml or config backups found, resetting to factory defaults."));
+			if (restore_backup('/conf.default/config.xml')) {
+				config_read_file();
 			}
 		}
 
@@ -133,8 +128,7 @@ if (is_platform_booting() && is_cli_sapi() &&
 	echo ".";
 }
 
-// reload config
-config_set_path('', parse_config());
+config_read_file(true, true);
 
 /* set timezone */
 $timezone = config_get_path('system/timezone');

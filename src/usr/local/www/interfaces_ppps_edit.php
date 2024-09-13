@@ -53,17 +53,13 @@ if (isset($_REQUEST['id']) && is_numericint($_REQUEST['id'])) {
 	$id = $_REQUEST['id'];
 }
 
-if (isset($_REQUEST['id']) && is_numericint($_REQUEST['id'])) {
-	$id = $_REQUEST['id'];
-}
-
 $this_ppp_config = isset($id) ? config_get_path("ppps/ppp/{$id}") : null;
 if ($this_ppp_config) {
 	$pconfig['ptpid'] = $this_ppp_config['ptpid'];
 	if (!isset($_REQUEST['type'])) {
 		$pconfig['type'] = $this_ppp_config['type'];
 	}
-	$pconfig['interfaces'] = explode(",", $this_ppp_config['ports']);
+	$pconfig['interfaces'] = array_filter(explode(",", $this_ppp_config['ports']));
 	$pconfig['username'] = $this_ppp_config['username'];
 	$pconfig['password'] = base64_decode($this_ppp_config['password']);
 	if (isset($this_ppp_config['secret'])) {
@@ -119,10 +115,10 @@ if ($this_ppp_config) {
 			$pconfig['apnum'] = $this_ppp_config['apnum'];
 			$pconfig['phone'] = $this_ppp_config['phone'];
 			$pconfig['connect-timeout'] = $this_ppp_config['connect-timeout'];
-			$localip = explode(",", $this_ppp_config['localip']);
+			$localip = array_filter(explode(",", $this_ppp_config['localip']));
 			for ($i = 0; $i < count($localip); $i++)
 				$pconfig['localip'][$pconfig['interfaces'][$i]] = $localip[$i];
-			$gateway = explode(",", $this_ppp_config['gateway']);
+			$gateway = array_filter(explode(",", $this_ppp_config['gateway']));
 			for ($i = 0; $i < count($gateway); $i++)
 				$pconfig['gateway'][$pconfig['interfaces'][$i]] = $gateway[$i];
 			$pconfig['country'] = $this_ppp_config['country'];
@@ -131,13 +127,13 @@ if ($this_ppp_config) {
 			break;
 		case "l2tp":
 		case "pptp":
-			$localip = explode(",", $this_ppp_config['localip']);
+			$localip = array_filter(explode(",", $this_ppp_config['localip']));
 			for ($i = 0; $i < count($localip); $i++)
 				$pconfig['localip'][$pconfig['interfaces'][$i]] = $localip[$i];
-			$subnet = explode(",", $this_ppp_config['subnet']);
+			$subnet = array_filter(explode(",", $this_ppp_config['subnet']));
 			for ($i = 0; $i < count($subnet); $i++)
 				$pconfig['subnet'][$pconfig['interfaces'][$i]] = $subnet[$i];
-			$gateway = explode(",", $this_ppp_config['gateway']);
+			$gateway = array_filter(explode(",", $this_ppp_config['gateway']));
 			for ($i = 0; $i < count($gateway); $i++)
 				$pconfig['gateway'][$pconfig['interfaces'][$i]] = $gateway[$i];
 		case "pppoe":
@@ -318,7 +314,7 @@ if ($_POST['save']) {
 				$parent_array = get_parent_interface($iface);
 				$parent = $parent_array[0];
 				$friendly = convert_real_interface_to_friendly_interface_name($parent);
-				if (!empty($if_config[$friendly]['mtu']) &&
+				if (!empty($friendly) && !empty($if_config[$friendly]['mtu']) &&
 					$_POST['mtu'][$iface] > ($if_config[$friendly]['mtu'] - 8)) {
 					$input_errors[] = sprintf(gettext('The MTU (%1$d) is too big for %2$s (maximum allowed with current settings: %3$d).'),
 						$_POST['mtu'][$iface], $iface, $if_config[$friendly]['mtu'] - 8);
