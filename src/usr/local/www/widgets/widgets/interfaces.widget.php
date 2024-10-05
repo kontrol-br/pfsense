@@ -91,7 +91,8 @@ foreach ($ifdescrs as $ifdescr => $ifname):
 	$known_status = true;
 
 	// Choose an icon by interface status
-	if ($ifinfo['status'] == "up" || $ifinfo['status'] == "associated") {
+	if ($ifinfo['status'] == "up" ||
+	    $ifinfo['status'] == "associated") {
 		$icon = 'fa-solid fa-arrow-up text-success';
 	} elseif ($ifinfo['status'] == "no carrier") {
 		$icon = 'fa-solid fa-times-circle text-danger';
@@ -232,7 +233,7 @@ if ($_REQUEST['ajax']) {
 		interfacesObject.url = "/widgets/widgets/interfaces.widget.php";
 		interfacesObject.callback = interfaces_callback;
 		interfacesObject.parms = postdata;
-		interfacesObject.freq = 1;
+		interfacesObject.freq = 5;
 
 		// Register the AJAX object
 		register_ajax(interfacesObject);

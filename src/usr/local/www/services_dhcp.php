@@ -1034,9 +1034,13 @@ if ($tabscounter == 0) {
 
 display_top_tabs($tab_array);
 
+if (is_null($pconfig) || !is_array($pconfig)) {
+	$pconfig = [];
+}
+
 $form = new Form();
 
-$section = new Form_Section(gettext('General DHCP Options'));
+$section = new Form_Section(gettext('General Settings'));
 
 $section->addInput(new Form_StaticText(
 	gettext('DHCP Backend'),
@@ -1905,15 +1909,15 @@ if (!is_numeric($pool) && !($act == "newpool")) {
 				<thead>
 					<tr>
 						<th><?=gettext("Static ARP")?></th>
-						<th><?=gettext("MAC address")?></th>
+						<th><?=gettext("MAC Address")?></th>
 <?php
 	if ($got_cid):
 ?>
-						<th><?=gettext("Client Id")?></th>
+						<th><?=gettext("Client ID")?></th>
 <?php
 	endif;
 ?>
-						<th><?=gettext("IP address")?></th>
+						<th><?=gettext("IP Address")?></th>
 						<th><?=gettext("Hostname")?></th>
 						<th><?=gettext("Description")?></th>
 						<th></th>
@@ -1954,8 +1958,8 @@ if (!is_numeric($pool) && !($act == "newpool")) {
 						<?=htmlspecialchars($mapent['descr'])?>
 					</td>
 					<td>
-						<a class="fa-solid fa-pencil"	title="<?=gettext('Edit static mapping')?>"	href="services_dhcp_edit.php?if=<?=htmlspecialchars($if)?>&amp;id=<?=$i?>"></a>
-						<a class="fa-solid fa-trash-can"	title="<?=gettext('Delete static mapping')?>"	href="services_dhcp.php?if=<?=htmlspecialchars($if)?>&amp;act=del&amp;id=<?=$i?>" usepost></a>
+						<a class="fa-solid fa-pencil" title="<?=gettext('Edit static mapping')?>"	href="services_dhcp_edit.php?if=<?=htmlspecialchars($if)?>&amp;id=<?=$i?>"></a>
+						<a class="fa-solid fa-trash-can text-danger" title="<?=gettext('Delete static mapping')?>"	href="services_dhcp.php?if=<?=htmlspecialchars($if)?>&amp;act=del&amp;id=<?=$i?>" usepost></a>
 					</td>
 				</tr>
 <?php

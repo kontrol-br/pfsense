@@ -24,6 +24,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 //require_once('interfaces.inc');
 require_once('Net/IPv6.php');
 define('VIP_ALL', 1);
@@ -47,6 +48,56 @@ define('SPECIALNET_GROUP', 11);
 define('SPECIALNET_VIPS', 12);
 define('SPECIALNET_CHECKPERM', 98);
 define('SPECIALNET_EXCLUDE', 99);
+
+/**
+ * Test the machine type
+ *
+ * @param string $arch		The architecture to test for
+ * @param bool $strict		Use strict architecture matching
+ *
+ * @return bool
+ */
+function is_arch(string $arch, bool $strict = false): bool
+{
+	$sys_arch = php_uname('m');
+	return (($arch == $sys_arch) || (!$strict && str_contains($sys_arch, $arch)));
+}
+
+/**
+ * Test if the machine type is any arm
+ *
+ * @return bool
+ */
+function is_arm(): bool
+{
+	return (is_arch('arm', false));
+}
+
+/**
+ * Test if the machine type is amd64
+ *
+ * @return bool
+ */
+function is_amd64(): bool
+{
+	return (is_arch('amd64', true));
+}
+
+/**
+ * Test if the machine type is arm64
+ */
+function is_arm64(): bool
+{
+	return (is_arch('arm64', true));
+}
+
+/**
+ * Test if the machine type is any 64bit
+ */
+function is_64bit(): bool
+{
+	return (is_amd64() || is_arm64());
+}
 
 /* kill a process by pid file */
 function killbypid($pidfile, $waitfor = 0) {
@@ -346,7 +397,7 @@ function gen_subnetv4($ipaddr, $bits) {
 		if ($bits == 0) {
 			return '0.0.0.0';  // avoids <<32
 		}
-		return long2ip(ip2long($ipaddr) & ((0xFFFFFFFF << (32 - $bits)) & 0xFFFFFFFF));
+		return long2ip32(ip2long($ipaddr) & ((0xFFFFFFFF << (32 - $bits)) & 0xFFFFFFFF));
 	}
 	return "";
 }
@@ -400,7 +451,7 @@ function gen_subnet_mask_long($bits) {
 
 /* same as above but returns a string */
 function gen_subnet_mask($bits) {
-	return long2ip(gen_subnet_mask_long($bits));
+	return long2ip32(gen_subnet_mask_long($bits));
 }
 
 /* Convert a prefix length to an IPv6 address-like mask notation. Very rare but at least ntp needs it. See #4463 */
@@ -416,6 +467,10 @@ function gen_subnet_mask_v6($bits) {
 /* Convert long int to IPv4 address
    Returns '' if not valid IPv4 (including if any bits >32 are non-zero) */
 function long2ip32($ip) {
+	if (PHP_INT_SIZE == 4) {
+		/* Convert long int on 32bit ARM, see NG #5445 */
+		return long2ip((int) ($ip + 0));
+	}
 	return long2ip($ip & 0xFFFFFFFF);
 }
 
@@ -601,7 +656,7 @@ function ip_range_to_address_array($startip, $endip, $max_size = 5000) {
 	$rangeaddresses = array();
 	$end_int = ip2ulong($endip);
 	for ($ip_int = ip2ulong($startip); $ip_int <= $end_int; $ip_int++) {
-		$rangeaddresses[] = long2ip($ip_int);
+		$rangeaddresses[] = long2ip32($ip_int);
 	}
 
 	return $rangeaddresses;
@@ -1025,7 +1080,7 @@ function subnetv4_expand($subnet) {
 	$net &= $mask;
 	$size = round(exp(log(2) * (32 - $bits)));
 	for ($i = 0; $i < $size; $i += 1) {
-		$result[] = long2ip($net | $i);
+		$result[] = long2ip32($net | $i);
 	}
 	return $result;
 }
@@ -1689,7 +1744,7 @@ function get_configured_interface_with_descr(bool $with_disabled = false) : arra
 
 	if (is_array($user_settings)
 	    && array_get_path($user_settings, 'webgui/interfacessort')) {
-		asort($iflist);
+		asort($iflist, SORT_NATURAL);
 	}
 
 	return ($iflist);
@@ -4670,4 +4725,3 @@ function unserialize_data(?string $path, mixed $default = null, ?array $options 
 	return $data;
 }
 
-?>

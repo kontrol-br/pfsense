@@ -360,7 +360,6 @@ function dhcp_apply_changes(): int {
 		$retvaldns |= services_unbound_configure();
 		if ($retvaldns == 0) {
 			clear_subsystem_dirty('unbound');
-
 			clear_subsystem_dirty('hosts');
 			clear_subsystem_dirty('dhcpd');
 		}
@@ -460,14 +459,18 @@ function dhcp6_apply_changes(): int {
 function kea_server_cert_list(): array {
 	return (array_filter(cert_build_list('cert', 'HTTPS'), function($refid) {
 		$cert = lookup_cert($refid);
-		return (array_get_path($cert, 'item/type') === 'server');
+		$isServer = $cert['item']['type'] === 'server';
+		$hasCA = isset($cert['item']['caref']);
+		return $isServer && $hasCA;
 	}, ARRAY_FILTER_USE_KEY));
 }
 
 function kea_client_cert_list(): array {
 	return (array_filter(cert_build_list('cert', 'HTTPS'), function($refid) {
 		$cert = lookup_cert($refid);
-		return (array_get_path($cert, 'item/type') === 'user');
+		$isClient = $cert['item']['type'] === 'user';
+		$hasCA = isset($cert['item']['caref']);
+		return $isClient && $hasCA;
 	}, ARRAY_FILTER_USE_KEY));
 }
 

@@ -59,13 +59,17 @@ function pkg_valid_name($pkgname) {
 	return preg_match($pattern, $pkgname);
 }
 
-/* Remove pkg_prefix from package name if it's present */
+/* Remove pkg_prefix or flavor_prefix from package name if it's present */
 function pkg_remove_prefix(&$pkg_name) {
-	global $g;
-
-	if (substr($pkg_name, 0, strlen(g_get('pkg_prefix'))) ==
-	    g_get('pkg_prefix')) {
-		$pkg_name = substr($pkg_name, strlen(g_get('pkg_prefix')));
+	$pres = [g_get('pkg_prefix')];
+	if (!is_null(g_get('flavor_prefix'))) {
+		$pres[] = g_get('flavor_prefix');
+	}
+	foreach ( $pres as $pre) {
+		if (str_starts_with($pkg_name, $pre)) {
+			$pkg_name = substr($pkg_name, strlen($pre));
+			break;
+		}
 	}
 }
 
@@ -1506,7 +1510,7 @@ function pkg_get_repo_help() {
 	}
 
 	if (!empty($repo_conf_path)) {
-		$repo_ext_pos = strrpos($repo_conf_path, '.conf'); 
+		$repo_ext_pos = strrpos($repo_conf_path, '.conf');
 		if (($repo_ext_pos !== false) && (substr($repo_conf_path, $repo_ext_pos) == '.conf')) {
 			$repo_help_path = substr($repo_conf_path, 0, $repo_ext_pos);
 			if (!empty($repo_help_path)) {

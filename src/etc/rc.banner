@@ -31,6 +31,25 @@ require_once("interfaces.inc");
 $hostname = config_get_path('system/hostname');
 $machine = trim(`uname -m`);
 
+/* Export the product variable. */
+if (is_writable("/etc")) {
+	$handle = NULL;
+	if (!file_exists("/etc/product_name") || is_writable("/etc/product_name"))
+		$handle = fopen("/etc/product_name", 'w');
+	if ($handle != NULL)
+		fwrite($handle, $g['product_name']);
+	if ($handle != NULL)
+		fclose($handle);
+
+	$handle = NULL;
+	if (!file_exists("/etc/product_label") || is_writable("/etc/product_label"))
+		$handle = fopen("/etc/product_label", 'w');
+	if ($handle != NULL)
+		fwrite($handle, $g['product_label']);
+	if ($handle != NULL)
+		fclose($handle);
+}
+
 $platform = system_identify_specific_platform();
 $serial = system_get_serial();
 if (isset($platform['descr'])) {
