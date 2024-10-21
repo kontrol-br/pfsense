@@ -31,8 +31,6 @@
 require_once("guiconfig.inc");
 require_once("functions.inc");
 
-config_init_path('ifgroups/ifgroupentry');
-
 if ($_POST['act'] == "del") {
 	if (is_numericint($_POST['id']) && config_get_path("ifgroups/ifgroupentry/{$_POST['id']}")) {
 		$members = explode(" ", config_get_path("ifgroups/ifgroupentry/{$_POST['id']}/members"));
@@ -97,7 +95,7 @@ display_top_tabs($tab_array);
 
 		unset($iflist);
 		$memberses = implode(", ", $memberses_arr);
-		echo $memberses;
+		echo htmlspecialchars($memberses);
 		if (count($members_arr) >= 10) {
 			echo '&hellip;';
 		}

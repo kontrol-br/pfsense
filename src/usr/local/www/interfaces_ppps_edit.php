@@ -41,8 +41,6 @@ define("CRON_WEEKLY_PATTERN", "0 0 * * 0");
 define("CRON_DAILY_PATTERN", "0 0 * * *");
 define("CRON_HOURLY_PATTERN", "0 * * * *");
 
-config_init_path('ppps/ppp');
-
 $iflist = get_configured_interface_with_descr();
 
 if (isset($_REQUEST['type'])) {
@@ -253,7 +251,7 @@ if ($_POST['save']) {
 	if (($_POST['type'] == 'l2tp') && (isset($_POST['secret']))) {
 		$pconfig['secret'] = $_POST['secret'];
 	}
-	if (($_POST['type'] == "ppp") && (count($_POST['interfaces']) > 1)) {
+	if (($_POST['type'] == "ppp") && is_array($_POST['interfaces']) && (count($_POST['interfaces']) > 1)) {
 		$input_errors[] = gettext("Multilink connections (MLPPP) using the PPP link type is not currently supported. Please select only one Link Interface.");
 	}
 	if ($_POST['provider'] && $_POST['null_service']) {
@@ -307,7 +305,7 @@ if ($_POST['save']) {
 		}
 
 		// Loop through each individual link/port and check max mtu
-		$if_config = config_get_path('interfaces');
+		$if_config = config_get_path('interfaces', []);
 		foreach ($_POST['interfaces'] as $iface) {
 			if (isset($_POST['mtu'][$iface]) &&
 			    strlen($_POST['mtu'][$iface]) > 0) {
@@ -464,7 +462,7 @@ if ($_POST['save']) {
 		write_config("PPP interface added");
 		configure_cron();
 
-		$if_config = config_get_path('interfaces');
+		$if_config = config_get_path('interfaces', []);
 		foreach ($iflist as $pppif => $ifdescr) {
 			if ($if_config[$pppif]['if'] == $ppp['if']) {
 				interface_ppps_configure($pppif);

@@ -32,13 +32,12 @@ require_once("captiveportal.inc");
 
 header("Expires: 0");
 header("Cache-Control: no-cache, no-store, must-revalidate");
-header("Pragma: no-cache");
 header("Connection: close");
 
 global $cpzone, $cpzoneid, $cpzoneprefix;
 
 $cpzone = strtolower($_REQUEST['zone']);
-$cpcfg = config_get_path("captiveportal/{$cpzone}");
+$cpcfg = config_get_path("captiveportal/{$cpzone}", []);
 
 /* NOTE: IE 8/9 is buggy and that is why this is needed */
 $orig_request = trim($_REQUEST['redirurl'], " /");

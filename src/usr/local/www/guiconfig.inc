@@ -56,7 +56,6 @@ if (!$omit_nocacheheaders) {
 	header("Expires: 0");
 	header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");
 	header("Cache-Control: no-cache, no-store, must-revalidate");
-	header("Pragma: no-cache");
 }
 
 require_once("authgui.inc");
@@ -917,21 +916,21 @@ function add_package_tabs($tabgroup, &$tab_array) {
 	}
 }
 
-function system_alias_info_popup($friendly_interface) {
-	if (empty($friendly_interface)) {
+function system_alias_info_popup($name, $description = null) {
+	if (empty($name)) {
 		return '';
 	}
 
 	$content = [];
-	$alias = escapeshellarg(strtoupper($friendly_interface) . '__NETWORK');
+	$alias = escapeshellarg($name);
 	exec("/sbin/pfctl -t {$alias} -T show 2>/dev/null", $content);
 
 	$alias_items = [];
 	foreach ($content as $address) {
-		$alias_items[] = trim($address);
+		$alias_items[] = htmlspecialchars(trim($address));
 	}
 
-	$content = "<h5>{$alias}</h5>";
+	$content = '<h5>' . ($description ?? htmlspecialchars($name)) . '</h5>';
 	if (empty($alias_items)) {
 		return $content;
 	}
@@ -940,12 +939,26 @@ function system_alias_info_popup($friendly_interface) {
 	return $content;
 }
 
-function alias_info_popup($alias_id) {
+function alias_info_popup($alias_id, $is_system_alias = false) {
 	global $user_settings;
 
-	$alias = config_get_path("aliases/alias/{$alias_id}");
-	if (!is_array($alias)) {
-		return;
+	$alias = null;
+
+	if ($is_system_alias) {
+		// Reserved aliases take precedence.
+		$reserved_alias = get_reserved_table_names($alias_id);
+		if (empty($reserved_alias)) {
+			return system_alias_info_popup($alias_id);
+		} elseif (in_array($reserved_alias[array_key_first($reserved_alias)]['type'], ['network', 'host']) && empty($reserved_alias[array_key_first($reserved_alias)]['address'])) {
+			return system_alias_info_popup($alias_id, $reserved_alias[array_key_first($reserved_alias)]['descr']);
+		}
+		$alias = $reserved_alias[array_key_first($reserved_alias)];
+	} else {
+		$alias = config_get_path("aliases/alias/{$alias_id}");
+	}
+
+	if (!isset($alias)) {
+		return '';
 	}
 
 	$maxlength = 60;
@@ -956,7 +969,7 @@ function alias_info_popup($alias_id) {
 			$alias['descr'] = substr($alias['descr'], 0, $maxlength) . '&hellip;';
 		}
 
-		$content .= $alias['descr'];
+		return htmlspecialchars($alias['descr']);
 	} else if ($alias['url']) {
 		// TODO: Change it when pf supports tables with ports
 		if ($alias['type'] == "urltable") {
@@ -974,6 +987,12 @@ function alias_info_popup($alias_id) {
 			$content .= '<i>'. gettext("listing only first 10k items") .'</i>';
 		}
 	} else {
+		if (empty($alias['address'])) {
+			if (strlen($alias['descr']) >= $maxlength) {
+				$alias['descr'] = substr($alias['descr'], 0, $maxlength) . '&hellip;';
+			}
+			return htmlspecialchars($alias['descr']);
+		}
 		$alias_addresses = explode (" ", $alias['address']);
 		$alias_details = explode ("||", $alias['detail']);
 		$idx = 0;
@@ -1005,7 +1024,6 @@ function alias_info_popup($alias_id) {
 }
 
 function gateway_info_popup($showgw, $gateways_status = false) {
-	config_init_path('gateways/gateway_group');
 	/* Get groups indexed by name so we can avoid re-scanning the array
 	 * multiple times later unnecessarily. */
 	$a_gateways = get_gateways(GW_CACHE_DISABLED | GW_CACHE_INACTIVE);

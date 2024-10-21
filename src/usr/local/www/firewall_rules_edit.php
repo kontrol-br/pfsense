@@ -167,7 +167,6 @@ if (count($ostypes) > 2) {
 
 $ifdisp = get_configured_interface_with_descr();
 
-config_init_path('filter/rule');
 filter_rules_sort();
 $a_filter = config_get_path('filter/rule', []);
 
@@ -2171,8 +2170,8 @@ events.push(function() {
 
 	// ---------- Autocomplete --------------------------------------------------------------------
 
-	var addressarray = <?= json_encode(get_alias_list(array("host", "network", "url", "urltable"))) ?>;
-	var customarray = <?= json_encode(get_alias_list(array("port", "url_ports", "urltable_ports"))) ?>;
+	var addressarray = <?= json_encode(get_alias_list('host,network,url,urltable')) ?>;
+	var customarray = <?= json_encode(get_alias_list('port,url_ports,urltable_ports')) ?>;
 
 	$('#src, #dst').autocomplete({
 		source: addressarray

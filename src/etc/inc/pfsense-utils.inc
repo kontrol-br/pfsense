@@ -1503,7 +1503,6 @@ function is_dhcpv6_server_enabled() {
 
 /* radvd enabled on any interfaces? */
 function is_radvd_enabled() {
-	config_init_path('dhcpdv6');
 	$dhcpdv6cfg = config_get_path('dhcpdv6', []);
 	$Iflist = get_configured_interface_list();
 
@@ -2952,7 +2951,6 @@ function get_cert_country_codes() {
 /* sort by interface only, retain the original order of rules that apply to
    the same interface */
 function filter_rules_sort() {
-	config_init_path('filter/rule');
 	$rules = config_get_path('filter/rule', []);
 
 	/* mark each rule with the sequence number (to retain the order while sorting) */
@@ -3646,10 +3644,8 @@ function send_user_download($type, $content, $userfilename = "", $contenttype = 
 
 	/* Send cache headers */
 	if (isset($_SERVER['HTTPS'])) {
-		header('Pragma: ');
 		header('Cache-Control: ');
 	} else {
-		header("Pragma: private");
 		header("Cache-Control: private, must-revalidate");
 	}
 
@@ -3707,7 +3703,7 @@ function get_pf_reserved(?string $name = '', bool $check_ifname = true):bool|arr
 		}
 		$reserved[] = strtoupper("{$if}__NETWORK");
 	}
-	$reserved = array_merge($pf_reserved_keywords, $reserved_table_names, $reserved);
+	$reserved = array_merge($pf_reserved_keywords, array_keys($reserved_table_names), $reserved);
 
 	return (empty($name) ? $reserved : in_array(strtoupper($name), $reserved));
 }
@@ -3761,4 +3757,74 @@ function set_curlproxy(&$ch) {
 
 function date_mdiff($date1, $date2){
 	return number_format(abs((float)$date1->format("U.u") - (float)$date2->format("U.u")), 6);
+}
+
+/**
+ * Parse user-configured aliases and rename any that conflict with reserved names.
+ * @return void
+ */
+function rename_conflicting_aliases() {
+	$aliases = config_get_path('aliases/alias', []);
+	$renamed_aliases = [];
+
+	// Normalize to lower case, filter out duplicates, and use array keys for searching.
+	$reserved_alias_names = array_merge(array_keys(get_reserved_table_names()), get_pf_reserved());
+	$reserved_alias_names = array_map('strtolower', $reserved_alias_names);
+	$reserved_alias_names = array_flip($reserved_alias_names);
+
+	foreach ($aliases as & $alias) {
+		// Skip if there's no conflict.
+		if (empty($alias['name']) || !is_string($alias['name']) ||
+		    !array_key_exists(strtolower($alias['name']), $reserved_alias_names)) {
+			continue;
+		}
+
+		// There's a name conflict, try to rename it.
+		$try_count = 0;
+		$try_successful = false;
+		$current_alias_names = array_flip(array_column($aliases, 'name'));
+		do {
+			$try_count++;
+
+			$new_name = mb_str_pad($alias['name'], 31, bin2hex(random_bytes(15)));
+			if (array_key_exists($new_name, $current_alias_names)) {
+				continue;
+			}
+
+			$renamed_aliases[] = [
+				'old' => $alias['name'],
+				'new' => $new_name
+			];
+			$alias['name'] = $new_name;
+
+			$try_successful = true;
+			break;
+		} while ($try_count < 10);
+
+		// The rename attempts failed - log and warn the user.
+		if (!$try_successful) {
+			file_notice('Alias', gettext('The following alias conflicts with a reserved keyword and must' .
+				' be manually renamed: ' . $alias['name'])
+			);
+		}
+	}
+	if (isset($alias)) {
+		unset($alias);
+	}
+	
+	// Abort if there's anything to do.
+	if (empty($renamed_aliases)) {
+		return;
+	}
+
+	// Commit alias changes and update references to their old name.
+	config_set_path('aliases/alias', $aliases);
+	foreach ($renamed_aliases as $alias) {
+		update_alias_name($alias['new'], $alias['old']);
+	}
+
+	// Log and warn the user of old alias names.
+	file_notice('Alias', gettext('The following aliases conflict with a reserved keyword and have been renamed: ') .
+		implode(', ', array_column($renamed_aliases, 'old'))
+	);
 }

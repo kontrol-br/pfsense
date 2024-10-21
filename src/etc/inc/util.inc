@@ -950,8 +950,77 @@ function is_hostnamewithport($hostport) {
 	return false;
 }
 
-/* returns true if $ipaddr is a valid dotted IPv4 address or an alias thereof */
+function get_reserved_table_names($name = '', $type = '') {
+	global $reserved_table_names;
+
+	if (!isset($name) || !isset($type) || !is_string($name) || !is_string($type)) {
+		return [];
+	}
+
+	$return = [];
+	$name = strtolower($name);
+	$requested_types = explode(',', $type);
+
+	// Check for given alias name.
+	if (!empty($name)) {
+		if (isset($reserved_table_names[$name]) && (empty($type) || in_array($reserved_table_names[$name]['type'], $requested_types))) {
+			$return = [$name => $reserved_table_names[$name]];
+		}
+		return $return;
+	}
+
+	// Check for give alias type(s).
+	foreach ($reserved_table_names as $alias_name => $alias_info) {
+		if (empty($type) || in_array($alias_info['type'], $requested_types)) {
+			$return[$alias_name] = $alias_info;
+		}
+	}
+	return $return;
+}
+
+function set_reserved_table_name($name, $value) {
+	global $reserved_table_names;
+
+	if (empty($name) || !is_string($name) || !is_string($value)) {
+		return false;
+	}
+
+	// Normalize the name.
+	$name = strtolower($name);
+	if (!isset($reserved_table_names[$name])) {
+		return false;
+	}
+
+	if (is_numericint($value)) {
+		$value = strval($value);
+	} elseif (!isset($value) || !is_string($value)) {
+		return false;
+	}
+
+	if ((($reserved_table_names[$name]['type'] == 'address') && is_ipaddr($value)) ||
+	    (($reserved_table_names[$name]['type'] == 'port') && is_port($value))) {
+		$reserved_table_names[$name]['address'] = $value;
+		return true;
+	}
+
+	return false;
+}
+
+/**
+ * Check if $ipaddr is a valid dotted IPv4 address or an alias thereof.
+ * Used in source/destination form input validation.
+ * @param mixed $ipaddr
+ * @return bool|int If an IP address, either 4 or 6 to denote the IP family.
+ */
 function is_ipaddroralias($ipaddr) {
+	if (empty($ipaddr)) {
+		return false;
+	}
+
+	if (!empty(get_reserved_table_names($ipaddr, 'host,network,url,urltable'))) {
+		return true;
+	}
+
 	if (is_alias($ipaddr)) {
 		foreach (config_get_path('aliases/alias', []) as $alias) {
 			if ($alias['name'] == $ipaddr && !preg_match("/port/i", $alias['type'])) {
@@ -1021,7 +1090,16 @@ function is_subnetv6($subnet) {
 
 /* returns true if $subnet is a valid subnet in CIDR format or an alias thereof */
 function is_subnetoralias($subnet) {
+	if (empty($subnet)) {
+		return false;
+	}
+
 	global $aliastable;
+
+	$reserved_alias = get_reserved_table_names($subnet, 'host,network,url,urltable');
+	if (!empty($reserved_alias)) {
+		return boolval(is_subnet($reserved_alias[array_key_first($reserved_alias)]['address']));
+	}
 
 	if (isset($aliastable[$subnet]) && is_subnet($aliastable[$subnet])) {
 		return true;
@@ -1392,8 +1470,21 @@ function is_port_or_range($port) {
 	return (is_port($port) || is_portrange($port));
 }
 
-/* returns true if $port is an alias that is a port type */
+/**
+ * Check if $port is a user or system alias that is a 'port' type.
+ * @param mixed $port The alias check.
+ * @return bool True if the alias is of type 'port'.
+ */
 function is_portalias($port) {
+	if (empty($port)) {
+		return false;
+	}
+
+	// pass input validation
+	if (!empty(get_reserved_table_names($port, 'port,url_ports,urltable_ports'))) {
+		return true;
+	}
+
 	if (is_alias($port)) {
 		foreach (config_get_path('aliases/alias', []) as $alias) {
 			if ($alias['name'] == $port && preg_match("/port/i", $alias['type'])) {
@@ -2084,13 +2175,35 @@ function unlink_if_exists($fn) {
 	return $result;
 }
 
-/* make a global alias table (for faster lookups) */
+/**
+ * Make a global alias table for faster lookups. Does not include
+ * system aliases since those are handled separately from aliases
+ * configured by users.
+ * @return void
+ */
 function alias_make_table() {
 	global $aliastable;
 
 	$aliastable = array();
+	$aliases = config_get_path('aliases/alias', []);
 
-	foreach (config_get_path('aliases/alias', []) as $alias) {
+	// Reserved aliases take precedence.
+	$reserved_alias = get_reserved_table_names();
+	if (!empty($reserved_alias)) {
+		foreach ($aliases as $id => $info) {
+			if (!isset($reserved_alias[$info['name']])) {
+				continue;
+			}
+			$aliases[$id] = $reserved_alias[$info['name']];
+			unset($reserved_alias[$info['name']]);
+		}
+
+		if (!empty($reserved_alias)) {
+			$aliases = array_merge($aliases, array_values($reserved_alias));
+		}
+	}
+
+	foreach ($aliases as $alias) {
 		if (!is_array($alias) || empty($alias)) {
 			continue;
 		}
@@ -2100,16 +2213,44 @@ function alias_make_table() {
 	}
 }
 
-/* check if an alias exists */
+/**
+ * Check if an alias exists. Used in form input validation.
+ * @param mixed $name The alias name.
+ * @return bool False is not a user or system alias.
+ */
 function is_alias($name) {
+	if (empty($name)) {
+		return false;
+	}
+
 	global $aliastable;
+
+	if (!empty(get_reserved_table_names($name))) {
+		return true;
+	}
 
 	return isset($aliastable[$name]);
 }
 
+/**
+ * Get the type of a user or system alias.
+ * @param mixed $name Alias name.
+ * @return string The alias type.
+ */
 function alias_get_type($name) {
+	if (empty($name)) {
+		return '';
+	}
 
-	foreach (config_get_path('aliases/alias', []) as $alias) {
+	$aliases = config_get_path('aliases/alias', []);
+
+	// Reserved aliases take precedence.
+	$reserved_alias = get_reserved_table_names($name);
+	if (!empty($reserved_alias)) {
+		return $reserved_alias[array_key_first($reserved_alias)]['type'];
+	}
+
+	foreach ($aliases as $alias) {
 		if ($name == $alias['name']) {
 			return $alias['type'];
 		}
@@ -2118,27 +2259,75 @@ function alias_get_type($name) {
 	return "";
 }
 
-/* expand a url alias, if necessary */
+/**
+ * Expand a URL user or system alias, if necessary.
+ * @param mixed $name Alias name.
+ * @return string|null null if the alias cannot be expanded.
+ */
 function alias_expand($name) {
+	if (empty($name)) {
+		return null;
+	}
 	global $aliastable;
 	$urltable_prefix = "/var/db/aliastables/";
 	$urltable_filename = $urltable_prefix . $name . ".txt";
+
+	$aliases = config_get_path('aliases/alias', []);
+
+	// Reserved aliases take precedence.
+	$reserved_alias = get_reserved_table_names($name);
+	if (!empty($reserved_alias)) {
+		if (!in_array($reserved_alias[array_key_first($reserved_alias)]['type'], ['url', 'url_ports', 'urltable', "urltable_ports"])) {
+			if (in_array($reserved_alias[array_key_first($reserved_alias)]['type'], ['port'])) {
+				return "\${$name}";
+			} else {
+				return "<{$name}>";
+			}
+		}
+
+		// Handle URL* type system aliases that specify a file path.
+		if (!empty($reserved_alias[array_key_first($reserved_alias)]['url']) && !is_URL($reserved_alias[array_key_first($reserved_alias)]['url'])) {
+			$urltable_filename = $reserved_alias[array_key_first($reserved_alias)]['url'];
+			if (file_exists($urltable_filename) && !empty(trim(file_get_contents($urltable_filename)))) {
+				if (in_array($reserved_alias[array_key_first($reserved_alias)]['type'], ['url_ports', 'urltable_ports'])) {
+					// pf does not support port tables - use a macro instead.
+					return "\${$name}";
+				} else {
+					return "<{$name}>";
+				}
+			} else {
+				return null;
+			}
+		}
+
+		// Replace user alias with system alias.
+		foreach ($aliases as $id => $info) {
+			if (!isset($reserved_alias[$info['name']])) {
+				continue;
+			}
+			$aliases[$id] = $reserved_alias[$info['name']];
+			unset($reserved_alias[$info['name']]);
+			break;
+		}
+		if (!empty($reserved_alias)) {
+			$aliases = array_merge($aliases, array_values($reserved_alias));
+		}
+	}
 
 	if (isset($aliastable[$name])) {
 		// alias names cannot be strictly numeric. redmine #4289
 		if (is_numericint($name)) {
 			return null;
 		}
+
 		/*
 		 * make sure if it's a url alias, it actually exists and valid URLs.
 		 * redmine #5845, #13068
 		 */
-		foreach (config_get_path('aliases/alias', []) as $alias) {
+		foreach ($aliases as $alias) {
 			if ($alias['name'] == $name) {
 				if (in_array($alias['type'], ['url', 'url_ports', 'urltable', "urltable_ports"])) {
-					if (is_URL($alias['url']) &&
-					    file_exists($urltable_filename) &&
-					    !empty(trim(file_get_contents($urltable_filename)))) {
+					if (is_URL($alias['url']) && file_exists($urltable_filename) && !empty(trim(file_get_contents($urltable_filename)))) {
 						return "\${$name}";
 					} elseif (is_array($alias['aliasurl'])) {
 						foreach ($alias['aliasurl'] as $aliasurl) {
@@ -2151,6 +2340,7 @@ function alias_expand($name) {
 						return null;
 					}
 				}
+				break;
 			}
 		}
 		return "\${$name}";
@@ -2162,11 +2352,48 @@ function alias_expand($name) {
 	}
 }
 
+/**
+ * Get the file path for a user or system urltable alias.
+ * @param mixed $name Alias file path.
+ * @return string|null null if the alias file does not exist.
+ */
 function alias_expand_urltable($name) {
+	if (empty($name)) {
+		return null;
+	}
 	$urltable_prefix = "/var/db/aliastables/";
 	$urltable_filename = $urltable_prefix . $name . ".txt";
 
-	foreach (config_get_path('aliases/alias', []) as $alias) {
+	$aliases = config_get_path('aliases/alias', []);
+
+	// Reserved aliases take precedence.
+	$reserved_alias = get_reserved_table_names($name, 'urltable');
+	if (!empty($reserved_alias)) {
+		// Handle URL* type system aliases that specify a file path.
+		if (!empty($reserved_alias[array_key_first($reserved_alias)]['url']) && !is_URL($reserved_alias[array_key_first($reserved_alias)]['url'])) {
+			$urltable_filename = $reserved_alias[array_key_first($reserved_alias)]['url'];
+			if (file_exists($urltable_filename)) {
+				return $urltable_filename;
+			} else {
+				return null;
+			}
+		}
+
+		// Replace user alias with system alias.
+		foreach ($aliases as $id => $info) {
+			if (!isset($reserved_alias[$info['name']])) {
+				continue;
+			}
+			$aliases[$id] = $reserved_alias[$info['name']];
+			unset($reserved_alias[$info['name']]);
+			break;
+		}
+		if (!empty($reserved_alias)) {
+			$aliases = array_merge($aliases, array_values($reserved_alias));
+		}
+	}
+
+	foreach ($aliases as $alias) {
 		if (!preg_match("/urltable/i", $alias['type']) ||
 		    ($alias['name'] != $name)) {
 			continue;
@@ -2682,7 +2909,6 @@ function is_interface_mismatch() {
 
 	/* VLAN/QinQ-only interface mismatch detection
 	 * see https://redmine.pfsense.org/issues/12170 */
-	config_init_path('vlans/vlan');
 	foreach (config_get_path('vlans/vlan', []) as $vlan) {
 		if (!does_interface_exist($vlan['if']) &&
 		    !preg_match("/^enc|^cua|^tun|^tap|^l2tp|^pptp|^ppp|^ovpn|^ipsec|^gif|^gre|^lagg|^bridge|vlan|_wlan|_\d{0,4}_\d{0,4}$/i", $vlan['if'])) {
@@ -2690,7 +2916,6 @@ function is_interface_mismatch() {
 			$do_assign = true;
 		}
 	}
-	config_init_path('qinqs/qinqentry');
 	foreach (config_get_path('qinqs/qinqentry', []) as $qinq) {
 		if (!does_interface_exist($qinq['if']) &&
 		    !preg_match("/^enc|^cua|^tun|^tap|^l2tp|^pptp|^ppp|^ovpn|^ipsec|^gif|^gre|^lagg|^bridge|vlan|_wlan|_\d{0,4}_\d{0,4}$/i", $qinq['if'])) {
@@ -3007,7 +3232,7 @@ function route_get($target, $ipprotocol = '', $useroute = false) {
 			return array();
 		} elseif ($interface == 'lo0') {
 			// interface assigned IP address
-			foreach (array_keys(config_get_path('interfaces')) as $intf) {
+			foreach (array_keys(config_get_path('interfaces', [])) as $intf) {
 				if ((($inet == '4') && (get_interface_ip($intf) == $target)) ||
 				    (($inet == '6') && (get_interface_ipv6($intf) == $target))) {
 					$interface = convert_friendly_interface_to_real_interface_name($intf);
@@ -3260,7 +3485,6 @@ function alias_to_subnets_recursive($name, $returnhostnames = false) {
 
 function get_staticroutes($returnsubnetsonly = false, $returnhostnames = false, $returnenabledroutesonly = false) {
 	/* Bail if there are no routes, but return an array always so callers don't have to check. */
-	config_init_path('staticroutes/route');
 	if (empty(config_get_path('staticroutes/route'))) {
 		return array();
 	}
@@ -3294,25 +3518,39 @@ function get_staticroutes($returnsubnetsonly = false, $returnhostnames = false, 
 
 /****f* util/get_alias_list
  * NAME
- *   get_alias_list - Provide a list of aliases.
+ *   get_alias_list - Provide a list of aliases. Used when auto-completing GUI fields.
  * INPUTS
  *   $type          - Optional, can be a string or array specifying what type(s) of aliases you need.
  * RESULT
  *   Array containing list of aliases.
  *   If $type is unspecified, all aliases are returned.
- *   If $type is a string, all aliases of the type specified in $type are returned.
- *   If $type is an array, all aliases of any type specified in any element of $type are returned.
+ *   If $type is a comma-separated string, all aliases of the type(s) specified in $type are returned.
  */
-function get_alias_list($type = null) {
-	$result = array();
-	foreach (config_get_path('aliases/alias', []) as $alias) {
-		if ($type === null) {
-			$result[] = $alias['name'];
-		} else if (is_array($type)) {
-			if (in_array($alias['type'], $type)) {
-				$result[] = $alias['name'];
+function get_alias_list($type = '') {
+	$requested_types = [];
+	if (!empty($type)) {
+		if (!is_string($type)) {
+			return [];
+		}
+		$requested_types = explode(',', $type);
+	}
+
+	$aliases = config_get_path('aliases/alias', []);
+
+	// Reserved aliases take precedence.
+	$reserved_aliases = get_reserved_table_names();
+	if (!empty($reserved_aliases)) {
+		foreach ($aliases as $id => $info) {
+			if (isset($reserved_aliases[$info['name']])) {
+				$aliases[$id] = $reserved_aliases[$info['name']];
+				unset($reserved_alias[$info['name']]);
 			}
-		} else if ($type === $alias['type']) {
+		}
+		$aliases = array_merge($aliases, array_values($reserved_aliases));
+	}
+
+	foreach ($aliases as $alias) {
+		if (empty($requested_types) || in_array($alias['type'], $requested_types)) {
 			$result[] = $alias['name'];
 		}
 	}
@@ -3858,8 +4096,6 @@ function array_del_path(array &$arr, string $path, $default = null) {
 
 
 function dhcpd_date_adjust_gmt($dt) {
-	config_init_path('dhcpd');
-
 	foreach (config_get_path('dhcpd', []) as $dhcpditem) {
 		if (empty($dhcpditem)) {
 			continue;
@@ -4596,7 +4832,6 @@ function dummynet_load_module($max_qlimit) {
 			"net.inet.ip.dummynet.hash_size" => "256",
 			"net.inet.ip.dummynet.pipe_slot_limit" => $max_qlimit
 	));
-	config_init_path('sysctl/item');
 	foreach (config_get_path('sysctl/item', []) as $item) {
 		if (preg_match('/net\.inet\.ip\.dummynet\./', $item['tunable'])) {
 			$sysctls[$item['tunable']] = $item['value'];
@@ -4608,7 +4843,6 @@ function dummynet_load_module($max_qlimit) {
 function get_interface_vip_ips($interface) {
 	$vipips = '';
 
-	config_init_path('virtualip/vip');
 	foreach (config_get_path('virtualip/vip', []) as $vip) {
 		if (($vip['interface'] == $interface) &&
 		    (($vip['mode'] == "carp") || ($vip['mode'] == "ipalias"))) {
