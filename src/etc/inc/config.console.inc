@@ -593,6 +593,12 @@ function installer_add_vlan($dev, $if, $descr, $tag, $pcp) {
 	return (0);
 }
 
+function installer_disable_lan() {
+	config_del_path('interfaces/lan');
+
+	return (0);
+}
+
 function installer_setup_lan($lan) {
 
 	if (!isset($lan->if) ||
@@ -753,17 +759,19 @@ function installer_settings_import() {
 
 	/* LAN setup. */
 	if (isset($lan->if) &&
-	    does_interface_exist($lan->if) &&
-	    installer_setup_lan($lan) != 0) {
-		return (-1);
+	    does_interface_exist($lan->if)) {
+		if (installer_setup_lan($lan) != 0) {
+			return (-1);
+		}
+	} else {
+		installer_disable_lan();
 	}
 
 	/* Remove the settings file. */
 	unlink("{$g['conf_path']}/installer-settings.json");
-	file_put_contents("{$g['conf_path']}/assign_complete", "1");
 
-	/* Remove the default trigger. */
-	config_del_path('system/trigger_virt_setup');
+	/* Let the system know that the interface assignment is done. */
+	touch("{$g['conf_path']}/assign_complete");
 
 	write_config(gettext("Network settings imported from the Netgate Installer"));
 

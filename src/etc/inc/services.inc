@@ -487,6 +487,7 @@ function services_kea6_configure() {
 	$kea_var_db = '/var/db/kea';
 
 	$kea6socket = g_get('varrun_path') . '/kea6-ctrl-socket';
+	unlink_if_exists($kea6socket . '.lock');
 
 	if (g_get('services_dhcp_server_enable') == false) {
 		return;
@@ -1060,7 +1061,7 @@ function services_dhcpd_kill_all($family = 'all') {
 
 	foreach ($pids as $pid) {
 		if (isvalidpid($pid)) {
-			killbypid($pid);
+			killbypid($pid, 10);
 			unlink_if_exists($pid);
 		}
 	}
@@ -1126,6 +1127,7 @@ function services_kea4_configure() {
 	$kea_var_lib = '/var/lib/kea';
 
 	$kea4socket = g_get('varrun_path').'/kea4-ctrl-socket';
+	unlink_if_exists($kea4socket . '.lock');
 
 	if (g_get('services_dhcp_server_enable') == false) {
 		return;
@@ -4157,8 +4159,13 @@ function services_dyndns_configure($int = "") {
 			echo gettext("Starting DynDNS clients...");
 		}
 
+		$configured_interfaces = config_get_path('interfaces');
 		foreach ($dyndnscfg as $dyndns) {
 			if (!is_array($dyndns) || empty($dyndns)) {
+				continue;
+			}
+			// Skip DDNS on disabled interfaces
+			if (isset($configured_interfaces[$dyndns['interface']]) && !array_path_enabled($configured_interfaces, $dyndns['interface'])) {
 				continue;
 			}
 			/*
