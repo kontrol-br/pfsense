@@ -1882,7 +1882,7 @@ function openvpn_resync_all($interface = "", $protocol = "") {
 
 	// Check if OpenVPN clients and servers require a resync.
 	foreach (array("server", "client") as $type) {
-		foreach (config_get_path("openvpn/openvpn-{$type}", []) as & $settings) {
+		foreach (config_get_path("openvpn/openvpn-{$type}", []) as $settings) {
 			if (isset($settings['disable'])) {
 				continue;
 			}
@@ -2241,14 +2241,22 @@ function openvpn_get_client_status($client, $socket) {
 
 function openvpn_kill_client($port, $remipp, $client_id) {
 	global $g;
+	$killed = -1;
 
-	//$tcpsrv = "tcp://127.0.0.1:{$port}";
-	$tcpsrv = "unix://{$g['openvpn_base']}/{$port}/sock";
+	$port = basename($port);
+	$sock_path = "{$g['openvpn_base']}/{$port}/sock";
+	/* If the socket doesn't exist, or if the remote IP address and port are
+	 * not valid, then do not proceed. */
+	if (!file_exists($sock_path) ||
+	    !is_ipaddrwithport($remipp)) {
+		return $killed;
+	}
+	$socket = "unix://{$sock_path}";
 	$errval = null;
 	$errstr = null;
 
 	/* open a tcp connection to the management port of each server */
-	$fp = @stream_socket_client($tcpsrv, $errval, $errstr, 1);
+	$fp = @stream_socket_client($socket, $errval, $errstr, 1);
 	$killed = -1;
 	if ($fp) {
 		stream_set_timeout($fp, 1);

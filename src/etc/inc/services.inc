@@ -1367,6 +1367,8 @@ function services_kea4_configure() {
 			continue;
 		}
 
+		interfaces_staticarp_configure($dhcpif);
+
 		$newzone = array();
 		$ifcfg = config_get_path("interfaces/{$dhcpif}");
 
@@ -1574,16 +1576,6 @@ function services_kea4_configure() {
 					'name' => 'domain-search',
 					'data' => implode(', ', array_map('trim', explode(';', $poolconf['domainsearchlist'])))
 				];
-			}
-
-			// default-lease-time
-			if ($poolconf['defaultleasetime'] && ($poolconf['defaultleasetime'] != $dhcpifconf['defaultleasetime'])) {
-				$keapool['valid-lifetime'] = $poolconf['defaultleasetime'];
-			}
-
-			// max-lease-time
-			if ($poolconf['maxleasetime'] && ($poolconf['maxleasetime'] != $dhcpifconf['maxleasetime'])) {
-				$keapool['max-valid-lifetime'] = $poolconf['maxleasetime'];
 			}
 
 			// ignore-client-uids

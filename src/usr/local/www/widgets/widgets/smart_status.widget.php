@@ -30,6 +30,23 @@ require_once("guiconfig.inc");
 require_once("pfsense-utils.inc");
 require_once("functions.inc");
 require_once("/usr/local/www/widgets/include/smart_status.inc");
+
+/*
+ * Validate the "widgetkey" value.
+ * When this widget is present on the Dashboard, $widgetkey is defined before
+ * the Dashboard includes the widget. During other types of requests, such as
+ * saving settings or AJAX, the value may be set via $_POST or similar.
+ */
+if ($_POST['widgetkey'] || $_GET['widgetkey']) {
+	$rwidgetkey = isset($_POST['widgetkey']) ? $_POST['widgetkey'] : (isset($_GET['widgetkey']) ? $_GET['widgetkey'] : null);
+	if (is_valid_widgetkey($rwidgetkey, $user_settings, __FILE__)) {
+		$widgetkey = $rwidgetkey;
+	} else {
+		print gettext("Invalid Widget Key");
+		exit;
+	}
+}
+
 $specplatform = system_identify_specific_platform();
 
 $devs = array();
