@@ -3366,3 +3366,54 @@ function system_get_arp_table($resolve_hostnames = false) {
 
 	return $arp_table;
 }
+
+function _getHostName($mac, $ip) {
+	global $dhcpmac, $dhcpip;
+
+	if ($dhcpmac[$mac]) {
+		return $dhcpmac[$mac];
+	} else if ($dhcpip[$ip]) {
+		return $dhcpip[$ip];
+	} else {
+		exec("/usr/bin/host -W 1 " . escapeshellarg($ip), $output);
+		if (preg_match('/.*pointer ([A-Za-z_0-9.-]+)\..*/', $output[0], $matches)) {
+			if ($matches[1] <> $ip) {
+				return $matches[1];
+			}
+		}
+	}
+	return "";
+}
+
+function check_dnsavailable($proto='inet') {
+
+	if ($proto == 'inet') {
+		$gdns = array('8.8.8.8', '8.8.4.4');
+	} elseif ($proto == 'inet6') {
+		$gdns = array('2001:4860:4860::8888', '2001:4860:4860::8844');
+	} else {
+		$gdns = array('8.8.8.8', '8.8.4.4', '2001:4860:4860::8888', '2001:4860:4860::8844');
+	}
+	$nameservers = array_merge($gdns, get_dns_nameservers());
+	$test = 0;
+
+	foreach ($gdns as $dns) {
+		if ($dns == '127.0.0.1') {
+			continue;
+		} else {
+			$dns_result = trim(_getHostName("", $dns));
+			if (($test == '2') && ($dns_result == "")) {
+				return false;
+			} elseif ($dns_result == "") {
+				$test++;
+				continue;
+			} else {
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+
+?>
