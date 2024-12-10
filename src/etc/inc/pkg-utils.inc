@@ -1530,6 +1530,9 @@ function pkg_switch_repo() {
  function update_repos() {
  	global $g, $cafile, $cafilesrc, $config, $idfile, $FQDN, $repopath;
 
+	$command = "pkg update";
+	$output = shell_exec($command);
+
  	if (!file_exists($idfile) || !function_exists('curl_version')) {
  		return;
  	}
