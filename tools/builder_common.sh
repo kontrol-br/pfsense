@@ -1572,7 +1572,13 @@ poudriere_rename_ports() {
 
 		cp -r ${d} ${_pdir}/${_pname}
 
-		if [ -f ${_pdir}/${_pname}/pkg-plist ]; then
+		# Composer module is special
+			if echo "${_pname}" | grep -q "composer"; then
+				sed -i '' -e "s,pfSense-composer-deps,${PRODUCT_NAME}-composer-deps,g" \
+				${_pdir}/${_pname}/Makefile ${_pdescr} ${_plist}
+				continue
+			fi
+			if [ -f ${_pdir}/${_pname}/pkg-plist ] && [ "${_pname}" != "${PRODUCT_NAME}" ]; then
 			_plist=${_pdir}/${_pname}/pkg-plist
 		fi
 
