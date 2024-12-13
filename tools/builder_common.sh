@@ -133,7 +133,7 @@ ensure_kernel_exists() {
 		echo ">>> ERROR: Kernel $1/boot/kernel.gz appears to be smaller than it should be: $KERNEL_SIZE"
 		print_error_pfS
 	fi
-echo "###### Copying and missing modules to kernel stage area ######"
+echo "###### Copying all missing modules to kernel stage area ######"
 cp /boot/modules/*.ko /usr/Kontrol/tmp/kernels/Kontrol/boot/kernel/
 kldxref /usr/Kontrol/tmp/kernels/Kontrol/boot/kernel/
 }
