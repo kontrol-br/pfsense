@@ -5,7 +5,7 @@
  * part of pfSense (https://www.pfsense.org)
  * Copyright (c) 2004-2013 BSD Perimeter
  * Copyright (c) 2013-2016 Electric Sheep Fencing
- * Copyright (c) 2014-2024 Rubicon Communications, LLC (Netgate)
+ * Copyright (c) 2014-2025 Rubicon Communications, LLC (Netgate)
  * All rights reserved.
  *
  * originally based on m0n0wall (http://m0n0.ch/wall)
@@ -677,8 +677,6 @@ function manage_log_code() {
 	phpsession_end();
 
 	if ($save_settings && !$read_only) {
-
-		$input_errors[] = "Shouldn't be here";
 		// Common to All Logs
 		$cronorder = getGETPOSTsettingvalue('cronorder',  null);
 		$nentries = getGETPOSTsettingvalue('nentries', null);
@@ -728,9 +726,8 @@ function manage_log_code() {
 		}
 
 		if (!$input_errors) {
-
-			if (($rotatecount != $syslog_config[$specific_log]['rotatecount']) ||
-			    ($logfilesize != $syslog_config[$specific_log]['logfilesize'])) {
+			if (($rotatecount != array_get_path($syslog_config, "{$specific_log}/rotatecount")) ||
+			    ($logfilesize != array_get_path($syslog_config, "{$specific_log}/logfilesize"))) {
 				$logging_changed = true;
 			}
 

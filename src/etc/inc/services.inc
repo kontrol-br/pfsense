@@ -5,7 +5,7 @@
  * part of pfSense (https://www.pfsense.org)
  * Copyright (c) 2004-2013 BSD Perimeter
  * Copyright (c) 2013-2016 Electric Sheep Fencing
- * Copyright (c) 2014-2024 Rubicon Communications, LLC (Netgate)
+ * Copyright (c) 2014-2025 Rubicon Communications, LLC (Netgate)
  * All rights reserved.
  *
  * originally part of m0n0wall (http://m0n0.ch/wall)
@@ -255,6 +255,20 @@ function services_radvd_configure($blacklist = array()) {
 			$radvdconf .= "\t\tRemoveRoute on;\n";
 		}
 		$radvdconf .= "\t};\n";
+		if (isset($dhcpv6ifconf['ranat64'])) {
+			if (is_string($dhcpv6ifconf['ranat64']) && is_subnetv6($dhcpv6ifconf['ranat64'])) {
+				if (is_numericint($dhcpv6ifconf['ranat64_lifetime'])) {
+					$ranat64_lifetime = $dhcpv6ifconf['ranat64_lifetime'];
+				} else {
+					$ranat64_lifetime = $ramaxrtradvinterval * 3;
+				}
+				$radvdconf .= "\tnat64prefix {$dhcpv6ifconf['ranat64']} {\n";
+				$radvdconf .= "\t\tAdvValidLifetime {$ranat64_lifetime};\n";
+				$radvdconf .= "\t};\n";
+			} else {
+				log_error("radvd: skipping nat64prefix for interface {$dhcpv6if} because the prefix is invalid.");
+			}
+		}
 
 		/* add DNS servers */
 		if ($dhcpv6ifconf['radvd-dns'] != 'disabled') {
@@ -282,9 +296,9 @@ function services_radvd_configure($blacklist = array()) {
 			}
 			$raadvdnsslifetime = $ramaxrtradvinterval * 3;
 			if (count($dnslist) > 0) {
-				// radvd supports up to 3 entries
+				// radvd supports up to 127 entries; allow up to 4 to align with DHCP
 				reset($dnslist);
-				$dnslist = array_slice($dnslist, 0, 3);
+				$dnslist = array_slice($dnslist, 0, 4);
 
 				$dnsstring = implode(" ", $dnslist);
 				if ($dnsstring <> "") {
@@ -404,6 +418,21 @@ function services_radvd_configure($blacklist = array()) {
 		$radvdconf .= "\t\tAdvAutonomous on;\n";
 		$radvdconf .= "\t};\n";
 
+		if (isset($dhcpv6ifconf['ranat64'])) {
+			if (is_string($dhcpv6ifconf['ranat64']) && is_subnetv6($dhcpv6ifconf['ranat64'])) {
+				if (is_numericint($dhcpv6ifconf['ranat64_lifetime'])) {
+					$ranat64_lifetime = $dhcpv6ifconf['ranat64_lifetime'];
+				} else {
+					$ranat64_lifetime = $ramaxrtradvinterval * 3;
+				}
+				$radvdconf .= "\tnat64prefix {$dhcpv6ifconf['ranat64']} {\n";
+				$radvdconf .= "\t\tAdvValidLifetime {$ranat64_lifetime};\n";
+				$radvdconf .= "\t};\n";
+			} else {
+				log_error("radvd: skipping nat64prefix for interface {$if} because the prefix is invalid.");
+			}
+		}
+
 		/* add DNS servers */
 		if (isset($dhcpv6ifconf['radvd-dns']) && ($dhcpv6ifconf['radvd-dns'] != 'disabled')) {
 			$dnslist = array();
@@ -417,9 +446,9 @@ function services_radvd_configure($blacklist = array()) {
 				}
 			}
 			if (count($dnslist) > 0) {
-				// radvd supports up to 3 entries
+				// radvd supports up to 127 entries; allow up to 4 to align with DHCP
 				reset($dnslist);
-				$dnslist = array_slice($dnslist, 0, 3);
+				$dnslist = array_slice($dnslist, 0, 4);
 
 				$dnsstring = implode(" ", $dnslist);
 				if (!empty($dnsstring)) {

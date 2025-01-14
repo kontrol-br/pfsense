@@ -5,7 +5,7 @@
  * part of pfSense (https://www.pfsense.org)
  * Copyright (c) 2004-2013 BSD Perimeter
  * Copyright (c) 2013-2016 Electric Sheep Fencing
- * Copyright (c) 2014-2024 Rubicon Communications, LLC (Netgate)
+ * Copyright (c) 2014-2025 Rubicon Communications, LLC (Netgate)
  * Copyright (c) 2005 Colin Smith
  * All rights reserved.
  *
@@ -453,6 +453,14 @@ if (!isvalidpid($gui_pidfile) && !$confirmed && !$completed &&
 							<?=gettext("Confirm")?>
 						</button>
 						<span id="uptodate"><i class="fa-solid fa-rotate fa-spin fa-lg text-warning"></i></span>
+					</div>
+				</div>
+
+				<div class="form-group">
+					<label class="col-sm-2 control-label">
+					</label>
+					<div class="col-sm-10" id="release_info">
+						<a target="_blank" href="https://docs.netgate.com/pfsense/en/latest/releases/versions.html"><?=gettext("Release notes and version information")?></a>
 					</div>
 				</div>
 <?php

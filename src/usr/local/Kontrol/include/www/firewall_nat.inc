@@ -3,7 +3,7 @@
  * firewall_nat.inc
  *
  * part of pfSense (https://www.pfsense.org)
- * Copyright (c) 2014-2024 Rubicon Communications, LLC (Netgate)
+ * Copyright (c) 2014-2025 Rubicon Communications, LLC (Netgate)
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -645,7 +645,7 @@ function saveNATrule($post, $id, $json = false) {
 function toggleNATrule($post, $json = false) {
 	// Check for single rule
 	if (!(is_array($post['rule']) && count($post['rule']))) {
-		$post['rule'] = array( $post['id'] => $post['id'] );
+		$post['rule'] = [ $post['id'] ];
 	}
 
 	foreach ($post['rule'] as $rulei) {

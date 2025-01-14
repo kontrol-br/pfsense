@@ -5,7 +5,7 @@
  * part of pfSense (https://www.pfsense.org)
  * Copyright (c) 2004-2013 BSD Perimeter
  * Copyright (c) 2013-2016 Electric Sheep Fencing
- * Copyright (c) 2014-2024 Rubicon Communications, LLC (Netgate)
+ * Copyright (c) 2014-2025 Rubicon Communications, LLC (Netgate)
  * Copyright (c) 2009 Erik Kristensen
  * All rights reserved.
  *
@@ -609,7 +609,7 @@ function write_config($desc="Unknown", $backup = true, $write_config_only = fals
 	}
 
 	if (config_get_path('syslog/logconfigchanges') != "disabled") {
-		log_error(gettext('Configuration Change: ' . config_get_path('revision/description')));
+		log_error(gettext('Configuration Change') . ': ' . config_get_path('revision/description'));
 	}
 
 	cleanup_backupcache(true);
@@ -1163,12 +1163,17 @@ function config_set_path(string $path, $value, $default = null) {
 	}
 	global $config;
 
-	if ($path == '' && !is_array($config)) {
-		// initialize $config when it's being completely replaced
-		$config = [];
+	if ($path == '') {
+		if (!is_array($value)) {
+			return $default;
+		}
+		if (!is_array($config)) {
+			// initialize $config when it's being completely replaced
+			$config = [];
+		}
 	} elseif ($path == '/') {
 		// prevent unintentionally treating $config as a list array
-		return ($default);
+		return $default;
 	}
 
 	return is_array($config) ? array_set_path($config, $path, $value, $default) : $default;
