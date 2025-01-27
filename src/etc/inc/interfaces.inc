@@ -342,7 +342,7 @@ function interface_has_clones($if) {
 
 /**
  * Configure the child VLAN interfaces for a parent interface.
- * 
+ *
  * @param bool $skip_parent_mtu Skip setting the parent interface's MTU
  */
 function interfaces_vlan_configure($parentif = "", $skip_parent_mtu = false) {
@@ -386,7 +386,7 @@ function interfaces_vlan_configure($parentif = "", $skip_parent_mtu = false) {
 
 /**
  * Configure a VLAN interface.
- * 
+ *
  * @param bool $skip_parent_mtu Skip setting the parent interface's MTU
  */
 function interface_vlan_configure(&$vlan, $flush = true, $skip_parent_mtu = false) {
@@ -2335,14 +2335,14 @@ function interface_ppps_configure($interface) {
 				}
 
 				if (!is_ipaddr($localips[$pid])) {
-					log_error(sprintf(gettext("Could not get a Local IP address for PPTP/L2TP link on %s in interfaces_ppps_configure. Using 0.0.0.0 ip!"), $port));
+					log_error(sprintf(gettext("Could not get a Local IP address for PPTP/L2TP link on %s in interface_ppps_configure. Using 0.0.0.0 ip!"), $port));
 					$localips[$pid] = "0.0.0.0";
 				}
 				if (!g_get('booting') && !is_ipaddr($gateways[$pid]) && is_hostname($gateways[$pid])) {
 					$gateways[$pid] = gethostbyname($gateways[$pid]);
 				}
 				if (!is_ipaddr($gateways[$pid])) {
-					log_error(sprintf(gettext('Could not get a PPTP/L2TP Remote IP address from %1$s for %2$s in interfaces_ppps_configure.'), $localips[$pid], $ppp['gateway']));
+					log_error(sprintf(gettext('Could not get a PPTP/L2TP Remote IP address from %1$s for %2$s in interface_ppps_configure.'), $localips[$pid], $ppp['gateway']));
 					return 0;
 				}
 				break;
@@ -4050,7 +4050,7 @@ function interface_mtu_wanted_for_pppoe($realif) {
 
 /**
  * Applies the configured settings for an interface.
- * 
+ *
  * @param bool $skip_parent_mtu Skip setting the parent interface's MTU
  */
 function interface_configure($interface = "wan", $reloadall = false, $linkupevent = false, $skip_parent_mtu = false) {
@@ -6696,7 +6696,7 @@ function get_interface_linklocal($interface = "wan") {
 /**
  * Get the first IPv6 address that is not a VIP or Link-Local address.
  * Prioritize IPv6 GUA over ULA.
- * 
+ *
  * @param string $interface Interface to check
  * @return array|bool IP address and prefix length; false If no match is found
  */
