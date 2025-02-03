@@ -120,20 +120,20 @@ function does_vip_exist($vip) {
 			return false;
 	}
 
-	$ifacedata = pfSense_getall_interface_addresses($realif);
-
-	if (is_subnetv6("{$vip['subnet']}/{$vip['subnet_bits']}")) {
-		$comparevip = text_to_compressed_ip6($vip['subnet']);
-		if (is_linklocal($vip['subnet'])) {
-			$comparevip .= "%{$realif}";
-		}
-		$comparevip .= "/{$vip['subnet_bits']}";
+	if (is_ipaddrv6($vip['subnet'])) {
+		$comparevip = Net_IPv6::uncompress($vip['subnet']);
 	} else {
-		$comparevip = "{$vip['subnet']}/{$vip['subnet_bits']}";
+		$comparevip = $vip['subnet'];
 	}
 
-	foreach ($ifacedata as $vipips) {
-		if ($vipips == $comparevip) {
+	$ifacedata = pfSense_get_ifaddrs($realif);
+	foreach (array_get_path($ifacedata, 'addrs', []) as $addrs) {
+		if ($addrs['addr'] == $comparevip) {
+			return true;
+		}
+	}
+	foreach (array_get_path($ifacedata, 'addrs6', []) as $addrs) {
+		if (Net_IPv6::uncompress($addrs['addr']) == $comparevip) {
 			return true;
 		}
 	}
@@ -2069,7 +2069,7 @@ function interface_wait_tentative($interface, $timeout = 10) {
 	$time = 0;
 	while ($time <= $timeout) {
 		$if = get_interface_addresses($interface);
-		if (!isset($if['tentative'])) {
+		if (!array_get_path($if, 'ipaddr6_flags/tentative', false)) {
 			return true;
 		}
 		sleep(1);
@@ -4082,25 +4082,19 @@ function interface_configure($interface = "wan", $reloadall = false, $linkupeven
 
 	if (!is_platform_booting() && (substr($realif, 0, 4) != "ovpn") && (substr($realif, 0, 5) != "ipsec")) {
 		/* remove all IPv4 and IPv6 addresses */
-		$tmpifaces = pfSense_getall_interface_addresses($realif);
-		if (is_array($tmpifaces)) {
-			foreach ($tmpifaces as $tmpiface) {
-				if (is_ipaddrv6($tmpiface) || is_subnetv6($tmpiface)) {
-					if (!is_linklocal($tmpiface)) {
-						mwexec("/sbin/ifconfig " . escapeshellarg($realif) . " inet6 {$tmpiface} delete");
-					}
-				} elseif (strstr($tmpiface, "fe80::1:1")) {
-					mwexec("/sbin/ifconfig " . escapeshellarg($realif) . " inet6 fe80::1:1 -alias");
-				} else {
-					if (is_subnetv4($tmpiface)) {
-						$tmpip = explode('/', $tmpiface);
-						$tmpip = $tmpip[0];
-					} else {
-						$tmpip = $tmpiface;
-					}
-					pfSense_interface_deladdress($realif, $tmpip);
-				}
+		$tmpifaces = pfSense_get_ifaddrs($realif);
+		foreach (array_get_path($tmpifaces, 'addrs', []) as $addrs) {
+			pfSense_interface_deladdress($realif, $addrs['addr']);
+		}
+		foreach (array_get_path($tmpifaces, 'addrs6', []) as $addrs) {
+			if ($addrs['addr'] == 'fe80::1:1') {
+				mwexec("/sbin/ifconfig " . escapeshellarg($realif) . " inet6 fe80::1:1 -alias");
+				continue;
 			}
+			if (isset($addrs['linklocal'])) {
+				continue;
+			}
+			mwexec("/sbin/ifconfig " . escapeshellarg($realif) . " inet6 {$addrs['addr']} delete");
 		}
 
 		/* only bring down the interface when both v4 and v6 are set to NONE */
@@ -6362,12 +6356,11 @@ function find_interface_ip($interface, $flush = false) {
 	if (!isset($interface_ip_arr_cache[$interface]) or $flush) {
 		if (file_exists("/var/db/{$interface}_ip")) {
 			$ifip = chop(file_get_contents("/var/db/{$interface}_ip"));
-			$ifaddrs = pfSense_getall_interface_addresses($interface);
-			foreach ($ifaddrs as $ifaddr) {
-				list($ip, $mask) = explode("/", $ifaddr);
-				if ($ip == $ifip) {
-					$interface_ip_arr_cache[$interface] = $ip;
-					$interface_sn_arr_cache[$interface] = $mask;
+			$ifaddrs = pfSense_get_ifaddrs($interface);
+			foreach (array_get_path($ifaddrs, 'addrs', []) as $addrs) {
+				if ($addrs['addr'] == $ifip) {
+					$interface_ip_arr_cache[$interface] = $addrs['addr'];
+					$interface_sn_arr_cache[$interface] = $addrs['subnetbits'];
 					break;
 				}
 			}
@@ -6420,19 +6413,15 @@ function find_interface_ipv6_ll($interface, $flush = false, $usefirst = true) {
 
 	/* Setup IP cache */
 	if (!isset($interface_llv6_arr_cache[$interface]) or $flush) {
-		$ifinfo = pfSense_getall_interface_addresses($interface);
-		foreach ($ifinfo as $line) {
-			if (strstr($line, ":")) {
-				$parts = explode("/", $line);
-				if (is_linklocal($parts[0])) {
-					$ifinfo['linklocal'] = $parts[0];
-					if ($usefirst) {
-						break;
-					}
+		$ifinfo = pfSense_get_ifaddrs($interface);
+		foreach (array_get_path($ifinfo, 'addrs6', []) as $addrs) {
+			if (isset($addrs['linklocal'])) {
+				$interface_llv6_arr_cache[$interface] = $addrs['addr'];
+				if ($usefirst) {
+					break;
 				}
 			}
 		}
-		$interface_llv6_arr_cache[$interface] = $ifinfo['linklocal'];
 	}
 	return $interface_llv6_arr_cache[$interface];
 }
@@ -7542,7 +7531,7 @@ function restart_interface_services($interface, $ipv6type = "") {
  * - broadcast: ipv4 broadcast addr (if applicable)
  * - tunnel: ipv4 PPP endpoint (if applicable)
  * - ipaddr6: ipv6 address
- * - tentative: ipv6 tentative flag (if applicable)
+ * - ipaddr6_flags: list of flags for the ipv6 address (if applicable)
  * - subnetbits6: ipv6 subnet bits
  * - tunnel6: ipv6 tunnel endpoint
  * - status: up or down interface status
@@ -7604,22 +7593,180 @@ function get_interface_addresses($interface) {
 	}
 
 	if ($v6addrs) {
-		// use the first IPv6 GUA address if one exists, otherwise the first address
-		$v6addr = $v6addrs[array_key_first($v6addrs)];
+		// Group IPv6 addresses by their flags
+		$address_flags = [
+			'linklocal' => [],
+			'anycast' => [],
+			'tentative' => [],
+			'duplicated' => [],
+			'detached' => [],
+			'deprecated' => [],
+			'autoconf' => [],
+			'temporary' => [],
+			'prefer_source' => [],
+			'no_flag' => []
+		];
+		foreach ($v6addrs as $addrs) {
+			$has_flag = false;
+			foreach (array_keys($addrs) as $key) {
+				if (isset($address_flags[$key])) {
+					$has_flag = true;
+					$address_flags[$key][] = $addrs['addr'];
+				}
+			}
+			if (!$has_flag) {
+				$address_flags['no_flag'][] = $addrs['addr'];
+			}
+		}
+
+		/**
+		 * Create a list of IPv6 addresses that prioritizes the most
+		 * "valid" source address. Each key in the array references a
+		 * group of IPv6 addresses. Each key is assigned the first GUA of
+		 * the respective group. If a GUA for the group does not exist,
+		 * then the first IPv6 address of the group is assigned.
+		 * 
+		 * A "preferred" address has the prefer_source flag and does not
+		 * have any flags considered "invalid".
+		 * 
+		 * A "manual" address does not have any flags.
+		 * 
+		 * A "valid" address does not have any flags considered "invalid".
+		 * 
+		 * An "invalid" address must have any of the following flags:
+		 * deprecated, duplicated, tentative, or detached. It may have
+		 * additional flags that need to be considered. The selected
+		 * address is based on the following flag order:
+		 * prefer_source, temporary, anycast, autoconf, deprecated, duplicated
+		 * tentative, and lastly detached.
+		 * 
+		 * A "linklocal" address has the linklocal flag.
+		 */
+		$address_priority_list = [
+			'preferred' => null,
+			'manual' => null,
+			'valid' => null,
+			'invalid' => null,
+			'linklocal' => null
+		];
+		// The merge/intersect/diff order here is important.
+		$candidate_addresses = array_unique(array_merge($address_flags['prefer_source'], $address_flags['no_flag'], $address_flags['temporary'], $address_flags['anycast'], $address_flags['autoconf']));
+		$invalid_addresses = array_unique(array_merge($address_flags['deprecated'], $address_flags['duplicated'], $address_flags['tentative'], $address_flags['detached']));
+		$invalid_addresses = array_unique(array_merge(array_intersect($candidate_addresses, $invalid_addresses), $invalid_addresses));
+		$valid_addresses = array_diff($candidate_addresses, $invalid_addresses);
+
+		// Get a preferred address.
+		$temp_list = [];
+		foreach ($address_flags['prefer_source'] as $address) {
+			if (in_array($address, $valid_addresses)) {
+				if (is_v6gua($address)) {
+					$temp_list = [$address];
+					break;
+				} else {
+					$temp_list[] = $address;
+				}
+			}
+		}
+		if (!empty($temp_list)) {
+			$address_priority_list['preferred'] = $temp_list[array_key_first($temp_list)];
+		}
+
+		// Get a manual address.
+		$temp_list = [];
+		foreach ($address_flags['no_flag'] as $address) {
+			if (is_v6gua($address)) {
+				$temp_list = [$address];
+				break;
+			} else {
+				$temp_list[] = $address;
+			}
+		}
+		if (!empty($temp_list)) {
+			$address_priority_list['manual'] = $temp_list[array_key_first($temp_list)];
+		}
+
+		// Get a valid address.
+		$temp_list = [];
+		foreach ($valid_addresses as $address) {
+			if (is_v6gua($address)) {
+				$temp_list = [$address];
+				break;
+			} else {
+				$temp_list[] = $address;
+			}
+		}
+		if (!empty($temp_list)) {
+			$address_priority_list['valid'] = $temp_list[array_key_first($temp_list)];
+		}
+
+		// Get an invalid address.
+		$temp_list = [];
+		foreach ($invalid_addresses as $address) {
+			if (is_v6gua($address)) {
+				$temp_list = [$address];
+				break;
+			} else {
+				$temp_list[] = $address;
+			}
+		}
+		if (!empty($temp_list)) {
+			$address_priority_list['invalid'] = $temp_list[array_key_first($temp_list)];
+		}
+
+		// Get a link-local address
+		if (!empty($address_flags['linklocal'])) {
+			$address_priority_list['linklocal'] = $address_flags[array_key_first($address_flags['linklocal'])];
+		}
+
+		$selected_address = null;
+		if (isset($address_priority_list['preferred']) && is_v6gua($address_priority_list['preferred'])) {
+			$selected_address = $address_priority_list['preferred'];
+		} elseif (isset($address_priority_list['manual']) && is_v6gua($address_priority_list['manual'])) {
+			$selected_address = $address_priority_list['manual'];
+		} elseif (isset($address_priority_list['valid']) && is_v6gua($address_priority_list['valid'])) {
+			$selected_address = $address_priority_list['valid'];
+		} elseif (isset($address_priority_list['preferred'])) {
+			$selected_address = $address_priority_list['preferred'];
+		} elseif (isset($address_priority_list['manual'])) {
+			$selected_address = $address_priority_list['manual'];
+		} elseif (isset($address_priority_list['valid'])) {
+			$selected_address = $address_priority_list['valid'];
+		} elseif (isset($address_priority_list['invalid'])) {
+			$selected_address = $address_priority_list['invalid'];
+		} elseif (isset($address_priority_list['linklocal'])) {
+			$selected_address = $address_priority_list['linklocal'];
+		} else {
+			// Unexpected condition
+			$v6addr = $v6addrs[array_key_first($v6addrs)];
+		}
 		foreach ($v6addrs as $addr) {
-			if (is_v6gua($addr['addr'])) {
+			if ($addr['addr'] == $selected_address) {
 				$v6addr = $addr;
 				break;
 			}
 		}
+
 		$ifaddrs['ipaddr6'] = $v6addr['addr'];
 		foreach(array("subnetbits", "tunnel") as $key) {
 			if (array_key_exists($key, $v6addr)) {
 				$ifaddrs[$key.'6'] = $v6addr[$key];
 			}
 		}
-		if (array_key_exists('tentative', $v6addr)) {
-			$ifaddrs['tentative'] = $v6addr['tentative'];
+
+		$selected_address_flags = [];
+		foreach ($address_flags as $flag => $addresses) {
+			if ($flag == 'no_flag') {
+				continue;
+			}
+			foreach ($addresses as $address) {
+				if ($address == $selected_address) {
+					$selected_address_flags[$flag] = true;
+					continue 2;
+				}
+			}
+		}
+		if (!empty($selected_address_flags)) {
+			$ifaddrs['ipaddr6_flags'] = $selected_address_flags;
 		}
 	}
 	unset($ifaddrs['addrs']);
