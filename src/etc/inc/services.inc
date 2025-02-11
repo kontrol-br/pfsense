@@ -737,6 +737,14 @@ function services_kea6_configure() {
 		$keasubnet['interface'] = $realif;
 		$keasubnet['subnet'] = $subnetv6 . '/' . $ifcfgsnv6;
 
+		if ($dhcpv6ifconf['pdprefix']) {
+			$keasubnet['pd-pools'][] = [
+				'prefix' => $dhcpv6ifconf['pdprefix'],
+				'prefix-len' => (int)$dhcpv6ifconf['pdprefixlen'],
+				'delegated-len' => (int)$dhcpv6ifconf['pddellen']
+			];
+		}
+
 		$all_pools = [];
 		$all_pools[] = $dhcpv6ifconf;
 		if (is_array($dhcpv6ifconf['pool'])) {
@@ -1030,9 +1038,11 @@ kea6_skip_first_pool_options:
 				$realif = get_real_interface($dhcpv6if, "inet6");
 				if (stristr("$realif", "bridge")) {
 					$mac = get_interface_mac($realif);
-					$v6address = generate_ipv6_from_mac($mac);
-					/* Create link local address for bridges */
-					mwexec("/sbin/ifconfig {$realif} inet6 {$v6address}");
+					if (is_macaddr($mac)) {
+						$v6address = generate_ipv6_from_mac($mac);
+						/* Create link local address for bridges */
+						mwexec("/sbin/ifconfig {$realif} inet6 {$v6address}");
+					}
 				}
 				$realif = escapeshellcmd($realif);
 				$dhcpdv6ifs[] = $realif;
@@ -3780,9 +3790,11 @@ EOD;
 				$realif = get_real_interface($dhcpv6if, "inet6");
 				if (stristr("$realif", "bridge")) {
 					$mac = get_interface_mac($realif);
-					$v6address = generate_ipv6_from_mac($mac);
-					/* Create link local address for bridges */
-					mwexec("/sbin/ifconfig {$realif} inet6 {$v6address}");
+					if (is_macaddr($mac)) {
+						$v6address = generate_ipv6_from_mac($mac);
+						/* Create link local address for bridges */
+						mwexec("/sbin/ifconfig {$realif} inet6 {$v6address}");
+					}
 				}
 				$realif = escapeshellcmd($realif);
 				$dhcpdv6ifs[] = $realif;

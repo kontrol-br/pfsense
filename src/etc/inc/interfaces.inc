@@ -120,21 +120,23 @@ function does_vip_exist($vip) {
 			return false;
 	}
 
+	$ifacedata = pfSense_get_ifaddrs($realif);
+	if (!isset($ifacedata)) {
+		return false;
+	}
 	if (is_ipaddrv6($vip['subnet'])) {
-		$comparevip = Net_IPv6::uncompress($vip['subnet']);
+		$comparevip = explode('%', Net_IPv6::uncompress($vip['subnet']));
+		foreach (array_get_path($ifacedata, 'addrs6', []) as $addrs) {
+			if (Net_IPv6::uncompress($addrs['addr']) == $comparevip[0]) {
+				return true;
+			}
+		}
 	} else {
 		$comparevip = $vip['subnet'];
-	}
-
-	$ifacedata = pfSense_get_ifaddrs($realif);
-	foreach (array_get_path($ifacedata, 'addrs', []) as $addrs) {
-		if ($addrs['addr'] == $comparevip) {
-			return true;
-		}
-	}
-	foreach (array_get_path($ifacedata, 'addrs6', []) as $addrs) {
-		if (Net_IPv6::uncompress($addrs['addr']) == $comparevip) {
-			return true;
+		foreach (array_get_path($ifacedata, 'addrs', []) as $addrs) {
+			if ($addrs['addr'] == $comparevip) {
+				return true;
+			}
 		}
 	}
 
@@ -528,14 +530,13 @@ function interface_qinq_configure(&$qinq, $flush = true) {
 		mwexec("/sbin/ifconfig {$qinqif} promisc\n");
 	}
 
-	$macaddr = get_interface_mac($qinqif);
 	if (!empty($qinq['members'])) {
 		$members = explode(" ", $qinq['members']);
 		foreach ($members as $qtag) {
 			$qinq2 = array();
 			$qinq2['tag'] = $qtag;
 			$qinq2['if'] = $vlanif;
-			interface_qinq2_configure($qinq2, $macaddr);
+			interface_qinq2_configure($qinq2);
 			unset($qinq2);
 		}
 	}
@@ -573,7 +574,7 @@ function interfaces_qinq_configure($ovpn=false) {
 	}
 }
 
-function interface_qinq2_configure(&$qinq, $macaddr) {
+function interface_qinq2_configure(&$qinq) {
 	if (!is_array($qinq)) {
 		log_error(sprintf(gettext("QinQ compat VLAN: called with wrong options. Problems with config!%s"), "\n"));
 		return;
@@ -2069,7 +2070,7 @@ function interface_wait_tentative($interface, $timeout = 10) {
 	$time = 0;
 	while ($time <= $timeout) {
 		$if = get_interface_addresses($interface);
-		if (!array_get_path($if, 'ipaddr6_flags/tentative', false)) {
+		if (isset($if) && !array_get_path($if, 'ipaddr6_flags/tentative', false)) {
 			return true;
 		}
 		sleep(1);
@@ -3662,8 +3663,8 @@ EOD;
 		}
 		if ($wlcfg['mode'] == "hostap") {
 			/* add line to script to restore old mac to make hostapd happy */
-			if (file_exists("{$g['tmp_path']}/{$if}_oldmac")) {
-				$if_oldmac = file_get_contents("{$g['tmp_path']}/{$if}_oldmac");
+			$if_oldmac = file_get_contents("{$g['tmp_path']}/{$if}_oldmac");
+			if (!empty($if_oldmac)) {
 				$if_curmac = get_interface_mac($if);
 				if ($if_curmac != $if_oldmac && is_macaddr($if_oldmac)) {
 					fwrite($fd_set, "{$ifconfig} " . escapeshellarg($if) .
@@ -3740,7 +3741,7 @@ EOD;
 		$clones_up = array();
 		foreach ($clone_list as $clone_if) {
 			$clone_status = get_interface_addresses($clone_if);
-			if ($clone_status['status'] == 'up') {
+			if (isset($clone_status) && ($clone_status['status'] == 'up')) {
 				$clones_up[] = $clone_if;
 				mwexec("{$ifconfig} " . escapeshellarg($clone_if) . " down");
 			}
@@ -4083,18 +4084,20 @@ function interface_configure($interface = "wan", $reloadall = false, $linkupeven
 	if (!is_platform_booting() && (substr($realif, 0, 4) != "ovpn") && (substr($realif, 0, 5) != "ipsec")) {
 		/* remove all IPv4 and IPv6 addresses */
 		$tmpifaces = pfSense_get_ifaddrs($realif);
-		foreach (array_get_path($tmpifaces, 'addrs', []) as $addrs) {
-			pfSense_interface_deladdress($realif, $addrs['addr']);
-		}
-		foreach (array_get_path($tmpifaces, 'addrs6', []) as $addrs) {
-			if ($addrs['addr'] == 'fe80::1:1') {
-				mwexec("/sbin/ifconfig " . escapeshellarg($realif) . " inet6 fe80::1:1 -alias");
-				continue;
+		if (isset($tmpifaces)) {
+			foreach (array_get_path($tmpifaces, 'addrs', []) as $addrs) {
+				pfSense_interface_deladdress($realif, $addrs['addr']);
 			}
-			if (isset($addrs['linklocal'])) {
-				continue;
+			foreach (array_get_path($tmpifaces, 'addrs6', []) as $addrs) {
+				if ($addrs['addr'] == 'fe80::1:1') {
+					mwexec("/sbin/ifconfig " . escapeshellarg($realif) . " inet6 fe80::1:1 -alias");
+					continue;
+				}
+				if (isset($addrs['linklocal'])) {
+					continue;
+				}
+				mwexec("/sbin/ifconfig " . escapeshellarg($realif) . " inet6 {$addrs['addr']} delete");
 			}
-			mwexec("/sbin/ifconfig " . escapeshellarg($realif) . " inet6 {$addrs['addr']} delete");
 		}
 
 		/* only bring down the interface when both v4 and v6 are set to NONE */
@@ -6357,6 +6360,9 @@ function find_interface_ip($interface, $flush = false) {
 		if (file_exists("/var/db/{$interface}_ip")) {
 			$ifip = chop(file_get_contents("/var/db/{$interface}_ip"));
 			$ifaddrs = pfSense_get_ifaddrs($interface);
+			if (!isset($ifaddrs)) {
+				return;
+			}
 			foreach (array_get_path($ifaddrs, 'addrs', []) as $addrs) {
 				if ($addrs['addr'] == $ifip) {
 					$interface_ip_arr_cache[$interface] = $addrs['addr'];
@@ -6367,6 +6373,9 @@ function find_interface_ip($interface, $flush = false) {
 		}
 		if (!isset($interface_ip_arr_cache[$interface])) {
 			$ifinfo = get_interface_addresses($interface);
+			if (!isset($ifinfo)) {
+				return;
+			}
 			$interface_ip_arr_cache[$interface] = $ifinfo['ipaddr'];
 			$interface_sn_arr_cache[$interface] = $ifinfo['subnetbits'];
 		}
@@ -6376,9 +6385,9 @@ function find_interface_ip($interface, $flush = false) {
 }
 
 /*
- * find_interface_ipv6($interface): return the interface ip (first found)
+ * find_interface_ipv6($interface): return the interface ip
  */
-function find_interface_ipv6($interface, $flush = false) {
+function find_interface_ipv6($interface, $flush = false, $linklocal_fallback = false) {
 	global $interface_ipv6_arr_cache;
 	global $interface_snv6_arr_cache;
 
@@ -6389,9 +6398,23 @@ function find_interface_ipv6($interface, $flush = false) {
 		return;
 	}
 
+	/**
+	 * Cache the previous linklocal_fallback value per interface.
+	 * If the linklocal_fallback value has changed for this interface,
+	 * force a flush and update the static cache.
+	 */
+	static $linklocal_fallback_cache = [];
+	if (!isset($linklocal_fallback_cache[$interface]) || $linklocal_fallback_cache[$interface] !== $linklocal_fallback) {
+		$flush = true;
+		$linklocal_fallback_cache[$interface] = $linklocal_fallback;
+	}
+
 	/* Setup IP cache */
 	if (!isset($interface_ipv6_arr_cache[$interface]) or $flush) {
-		$ifinfo = get_interface_addresses($interface);
+		$ifinfo = get_interface_addresses($interface, $linklocal_fallback);
+		if (!isset($ifinfo)) {
+			return;
+		}
 		$interface_ipv6_arr_cache[$interface] = $ifinfo['ipaddr6'];
 		$interface_snv6_arr_cache[$interface] = $ifinfo['subnetbits6'];
 	}
@@ -6414,9 +6437,12 @@ function find_interface_ipv6_ll($interface, $flush = false, $usefirst = true) {
 	/* Setup IP cache */
 	if (!isset($interface_llv6_arr_cache[$interface]) or $flush) {
 		$ifinfo = pfSense_get_ifaddrs($interface);
+		if (!isset($ifinfo)) {
+			return;
+		}
 		foreach (array_get_path($ifinfo, 'addrs6', []) as $addrs) {
 			if (isset($addrs['linklocal'])) {
-				$interface_llv6_arr_cache[$interface] = $addrs['addr'];
+				$interface_llv6_arr_cache[$interface] = "{$addrs['addr']}%{$interface}";
 				if ($usefirst) {
 					break;
 				}
@@ -6437,6 +6463,9 @@ function find_interface_subnet($interface, $flush = false) {
 
 	if (!isset($interface_sn_arr_cache[$interface]) or $flush) {
 		$ifinfo = get_interface_addresses($interface);
+		if (!isset($ifinfo)) {
+			return;
+		}
 		$interface_ip_arr_cache[$interface] = $ifinfo['ipaddr'];
 		$interface_sn_arr_cache[$interface] = $ifinfo['subnetbits'];
 	}
@@ -6455,6 +6484,9 @@ function find_interface_subnetv6($interface, $flush = false) {
 
 	if (!isset($interface_snv6_arr_cache[$interface]) or $flush) {
 		$ifinfo = get_interface_addresses($interface);
+		if (!isset($ifinfo)) {
+			return;
+		}
 		$interface_ipv6_arr_cache[$interface] = $ifinfo['ipaddr6'];
 		$interface_snv6_arr_cache[$interface] = $ifinfo['subnetbits6'];
 	}
@@ -6638,25 +6670,12 @@ function get_interface_ipv6($interface = "wan", $flush = false, $linklocal_fallb
 	}
 
 	/*
-	 * Beware that find_interface_ip() is our last option, it will
-	 * return the first IP it find on interface, not necessarily the
-	 * main IP address.
+	 * NOTE: On the case when only the prefix is requested,
+	 * the communication on WAN will be done over link-local.
 	 */
-	$curip = find_interface_ipv6($realif, $flush);
+	$curip = find_interface_ipv6($realif, $flush, $linklocal_fallback);
 	if ($curip && is_ipaddrv6($curip) && ($curip != "::")) {
 		return $curip;
-	} else {
-		/*
-		 * NOTE: On the case when only the prefix is requested,
-		 * the communication on WAN will be done over link-local.
-		 */
-		$iface = config_get_path("interfaces/{$interface}");
-		if ($linklocal_fallback || (is_array($iface) && isset($iface['dhcp6prefixonly']))) {
-			$curip = find_interface_ipv6_ll($realif, $flush);
-			if ($curip && is_ipaddrv6($curip) && ($curip != "::")) {
-				return $curip;
-			}
-		}
 	}
 	return null;
 }
@@ -6692,7 +6711,7 @@ function get_interface_linklocal($interface = "wan") {
 function get_interface_track6ip($interface = "wan") {
 	$ifinfo = get_interface_addresses(get_real_interface($interface));
 
-	if (isset($ifinfo['ipaddr6']) && isset($ifinfo['subnetbits6'])) {
+	if (isset($ifinfo) && isset($ifinfo['ipaddr6']) && isset($ifinfo['subnetbits6'])) {
 		return [$ifinfo['ipaddr6'], $ifinfo['subnetbits6']];
 	}
 
@@ -7083,6 +7102,9 @@ function get_interface_mtu($interface) {
 
 function get_interface_mac($interface) {
 	$macinfo = get_interface_addresses($interface);
+	if (!isset($macinfo)) {
+		return '';
+	}
 	return $macinfo["macaddr"];
 }
 
@@ -7090,7 +7112,7 @@ function get_interface_vendor_mac($interface) {
 	global $g;
 
 	$macinfo = get_interface_addresses($interface);
-	if (isset($macinfo["hwaddr"]) && $macinfo["hwaddr"] !=
+	if (isset($macinfo) && isset($macinfo["hwaddr"]) && $macinfo["hwaddr"] !=
 	    "00:00:00:00:00:00") {
 		return ($macinfo["hwaddr"]);
 	}
@@ -7101,7 +7123,7 @@ function get_interface_vendor_mac($interface) {
 		if (is_macaddr($macaddr)) {
 			return ($macaddr);
 		}
-	} elseif (is_macaddr($macinfo['macaddr'])) {
+	} elseif (isset($macinfo) && is_macaddr($macinfo['macaddr'])) {
 		/* Save original macaddress to be restored when necessary */
 		@file_put_contents($hwaddr_file, $macinfo['macaddr']);
 	}
@@ -7524,6 +7546,11 @@ function restart_interface_services($interface, $ipv6type = "") {
  * Return interface parameters and primary ipv4 and ipv6 addresses for the real iface
  * $interface, identified by exclusion of VIPs. Deprecates pfSense_get_interface_addresses()
  *
+ * @param string $interface The "real" interface name.
+ * @param bool $linklocal_fallback If true, include the IPv6 LL address
+ *             when no other addresses exist. This defaults to false to
+ *             retain the function's previous behavior.
+ *
  * Result array contains keyed values:
  * - ipaddr: ipv4 address
  * - subnetbits: ipv4 subnet bits
@@ -7554,12 +7581,15 @@ function restart_interface_services($interface, $ipv6type = "") {
  * - macaddr: interface configured ethernet address
  * - hwaddr: hardware ethernet address
  */
-function get_interface_addresses($interface) {
+function get_interface_addresses($interface, $linklocal_fallback = false) {
 	$v4addrs = array();
 	$v6addrs = array();
 	$v4vips = array();
 	$v6vips = array();
 	$ifaddrs = pfSense_get_ifaddrs($interface);
+	if (!isset($ifaddrs)) {
+		return null;
+	}
 
 	foreach (array_keys(get_configured_vip_list()) as $viface) {
 		$vip = get_configured_vip($viface);
@@ -7746,27 +7776,33 @@ function get_interface_addresses($interface) {
 			}
 		}
 
-		$ifaddrs['ipaddr6'] = $v6addr['addr'];
-		foreach(array("subnetbits", "tunnel") as $key) {
-			if (array_key_exists($key, $v6addr)) {
-				$ifaddrs[$key.'6'] = $v6addr[$key];
+		if (!isset($v6addr['linklocal']) || $linklocal_fallback) {
+			$ifaddrs['ipaddr6'] = $v6addr['addr'];
+			if (isset($v6addr['linklocal'])) {
+				$ifaddrs['ipaddr6'] .= "%{$interface}";
 			}
-		}
-
-		$selected_address_flags = [];
-		foreach ($address_flags as $flag => $addresses) {
-			if ($flag == 'no_flag') {
-				continue;
-			}
-			foreach ($addresses as $address) {
-				if ($address == $selected_address) {
-					$selected_address_flags[$flag] = true;
-					continue 2;
+	
+			foreach(array("subnetbits", "tunnel") as $key) {
+				if (array_key_exists($key, $v6addr)) {
+					$ifaddrs[$key.'6'] = $v6addr[$key];
 				}
 			}
-		}
-		if (!empty($selected_address_flags)) {
-			$ifaddrs['ipaddr6_flags'] = $selected_address_flags;
+	
+			$selected_address_flags = [];
+			foreach ($address_flags as $flag => $addresses) {
+				if ($flag == 'no_flag') {
+					continue;
+				}
+				foreach ($addresses as $address) {
+					if ($address == $selected_address) {
+						$selected_address_flags[$flag] = true;
+						continue 2;
+					}
+				}
+			}
+			if (!empty($selected_address_flags)) {
+				$ifaddrs['ipaddr6_flags'] = $selected_address_flags;
+			}
 		}
 	}
 	unset($ifaddrs['addrs']);
@@ -7784,10 +7820,10 @@ function get_interface_addresses_all(string $interface): array {
 
 	// Get primary IPv4/6 addresses
 	$addresses_primary = get_interface_addresses($interface);
-	if (!empty($addresses_primary['ipaddr'])) {
+	if (isset($addresses_primary) && !empty($addresses_primary['ipaddr'])) {
 		$addresses[] = $addresses_primary['ipaddr'];
 	}
-	if (!empty($addresses_primary['ipaddr6'])) {
+	if (isset($addresses_primary) && !empty($addresses_primary['ipaddr6'])) {
 		$addresses[] = $addresses_primary['ipaddr6'];
 	}
 
