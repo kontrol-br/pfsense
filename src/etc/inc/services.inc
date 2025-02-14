@@ -1013,16 +1013,6 @@ kea6_skip_first_pool_options:
 			}
 		}
 
-		if (is_ipaddrv6($dhcpv6ifconf['prefixrange']['from']) && is_ipaddrv6($dhcpv6ifconf['prefixrange']['to'])) {
-			if ($len = v6_range_to_prefixlen($dhcpv6ifconf['prefixrange']['from'], $dhcpv6ifconf['prefixrange']['to'])) {
-				$keasubnet['pd-pools'][] = [
-					'prefix' => $dhcpv6ifconf['prefixrange']['from'],
-					'prefix-len' => (int)$len,
-					'delegated-len' => (int)$dhcpv6ifconf['prefixrange']['prefixlength']
-				];
-			}
-		}
-
 		if ($dhcpv6ifconf['ddnsdomain']) {
 			$dhcpdv6conf .= dhcpdkey($dhcpv6ifconf);
 			$dhcpdv6conf .= dhcpdzones($ddns_zones);
@@ -1110,9 +1100,11 @@ function services_dhcpd_kill_all($family = 'all') {
 
 	if (($family === 'all') || ($family === 'inet')) {
 		$pids = array_merge($pids, $pids4);
+		killbyname('kea-dhcp4'); /* See https://redmine.pfsense.org/issues/16019 */
 	}
 	if (($family === 'all') || ($family === 'inet6')) {
 		$pids = array_merge($pids, $pids6);
+		killbyname('kea-dhcp6'); /* See https://redmine.pfsense.org/issues/16019 */
 	}
 
 	foreach ($pids as $pid) {
