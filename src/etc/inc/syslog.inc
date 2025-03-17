@@ -1234,29 +1234,59 @@ function find_rule_by_number($rulenum, $trackernum, $type="block") {
 	global $g;
 
 	/* Passing arbitrary input to grep could be a Very Bad Thing(tm) */
-	if (!is_numeric($rulenum) || !is_numeric($trackernum) || !in_array($type, array('pass', 'block', 'match', 'rdr'))) {
+	if (!is_numeric($rulenum) || !is_numeric($trackernum)) {
 		return;
 	}
 
-	if ($trackernum == "0") {
-		$lookup_pattern = "^@{$rulenum}\([0-9]+\)[[:space:]]{$type}[[:space:]].*[[:space:]]log[[:space:]]";
-	} else {
-		$lookup_pattern = "^@[0-9]+[[:space:]]{$type}[[:space:]].*[[:space:]]log[[:space:]].*[[:space:]]ridentifier[[:space:]]{$trackernum}";
+	switch ($type) {
+		case 'pass':
+		case 'block':
+		case 'match':
+		case 'rdr':
+			break;
+		case 'unkn(%u)':
+			// Work around filterlog issue with 'match' rules.
+			$type = 'match';
+			break;
+		default:
+			return;
 	}
 
-	/* At the moment, miniupnpd is the only thing I know of that
-	   generates logging rdr rules */
-	unset($buffer);
+	$command = '/sbin/pfctl -vvPsr';
 	if ($type == "rdr") {
-		$_gb = exec("/sbin/pfctl -vvPsn -a \"miniupnpd\" | /usr/bin/egrep " . escapeshellarg("^@{$rulenum}"), $buffer);
+		/* miniupnpd generates logging rdr rules */
+		$lookup_pattern = "/^@{$rulenum}/m";
+		$command = '/sbin/pfctl -vvPsn -a "miniupnpd"';
+	} elseif ($trackernum == "0") {
+		$lookup_pattern = "/^@{$rulenum}\([0-9]+\)[[:blank:]]{$type}[[:blank:]].*[[:blank:]]log[[:blank:]]/m";
 	} else {
-		$_gb = exec("/sbin/pfctl -vvPsr | /usr/bin/egrep " . escapeshellarg($lookup_pattern), $buffer);
-	}
-	if (is_array($buffer)) {
-		return $buffer[0];
+		$lookup_pattern = "/^@[0-9]+[[:blank:]]{$type}[[:blank:]].*[[:blank:]]log[[:blank:]].*[[:blank:]]ridentifier[[:blank:]]{$trackernum}$/m";
 	}
 
-	return "";
+	$output = exec_command($command);
+	$result = 'unavailable';
+	$matches = [];
+	if (preg_match($lookup_pattern, $output, $matches)) {
+		$result = $matches[0];
+	} elseif ($type == 'block') {
+		// Check for IP options; check 'pass' with no log.
+		$lookup_pattern = "/^@([0-9]+)[[:blank:]]pass[[:blank:]].*[[:blank:]]ridentifier[[:blank:]]{$trackernum}$/m";
+		if (preg_match_all($lookup_pattern, $output, $matches)) {
+			// Default to the first match.
+			$result = $matches[0][0];
+			if (count($matches[0]) > 1) {
+				// If the rule is a IPv4+IPv6 rule, there may be multiple matches.
+				foreach ($matches[1] as $idx => $value) {
+					if ($rulenum == $value) {
+						$result = $matches[0][$idx];
+						break;
+					}
+				}
+			}
+		}
+	}
+
+	return $result;
 }
 
 function buffer_rules_load() {
@@ -1372,13 +1402,42 @@ function handle_ajax() {
 					$icon_act = "fa-solid fa-check text-success";
 				}
 
-				$btn = '<i class="' . $icon_act . ' icon-pointer" title="' . $log_row['act'] . '/' . $log_row['tracker'] . '" onclick="javascript:getURL(\'status_logs_filter.php?getrulenum=' . $log_row['rulenum'] . ',' . $log_row['tracker'] . ',' . $log_row['act'] . '\', outputrule);"></i>';
+				$btn = '<i class="' . $icon_act . ' icon-pointer" title="' . $log_row['act'] . '/' . $log_row['reason'] .'/'. $log_row['tracker'] . '" onclick="javascript:getURL(\'status_logs_filter.php?getrulenum=' . $log_row['rulenum'] . ',' . $log_row['tracker'] . ',' . $log_row['act'] . '\', outputrule);"></i>';
 				$new_rules .= "{$btn}||{$log_row['time']}||{$log_row['interface']}||{$log_row['srcip']}||{$log_row['srcport']}||{$log_row['dstip']}||{$log_row['dstport']}||{$log_row['proto']}||{$log_row['version']}||" . time() . "||\n";
 			}
 		}
 		echo $new_rules;
 		exit;
 	}
+}
+
+function print_syslog_rule_action($rule) {
+	$pf_rule = htmlspecialchars(find_rule_by_number($rule['rulenum'], $rule['tracker'], $rule['act']));
+	$margin = $rule['count'] ? '0em' : '0.4em';
+	$reason = htmlspecialchars($rule['reason']);
+	$tracker = htmlspecialchars($rule['tracker']);
+
+	// "match" action is not supported - filterlog writes it as 'unkn(%u)'
+	$icon_class = match ($rule['act']) {
+		'block' => 'fa-solid fa-times text-danger',
+		'reject' => 'fa-regular fa-hand text-warning',
+		default => 'fa-solid fa-filter'
+	};
+	switch ($rule['act']) {
+		case 'pass':
+		case 'block':
+		case 'match':
+		case 'rdr':
+			$action = $rule['act'];
+			break;
+		default:
+			$action = 'unknown';
+			break;
+	}
+
+	return '<a data-toggle="popover" data-trigger="hover focus" title="' . gettext('Rule details') . '" data-content="' .
+		"Action: {$action}<br />Reason: {$reason}<br />Tracker ID: {$tracker}<br />Rule: {$pf_rule}" .
+		'" data-html="true"><i style="margin-left:' . $margin . '" class="' . $icon_class . ' icon-pointer"></i></a>';
 }
 
 /* Compatibility stubs for old clog functions until packages catch up.

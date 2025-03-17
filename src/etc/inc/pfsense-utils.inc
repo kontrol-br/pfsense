@@ -2962,31 +2962,42 @@ function filter_rules_sort() {
 	$rules = config_get_path('filter/rule', []);
 
 	/* mark each rule with the sequence number (to retain the order while sorting) */
-	for ($i = 0; isset($rules[$i]); $i++) {
-		$rules[$i]['seq'] =$i;
+	$i = 0;
+	foreach ($rules as &$rule) {
+		$rule['seq'] = $i++;
 	}
+	unset($rule);
 	usort($rules, "filter_rules_compare");
 
 	/* strip the sequence numbers again */
-	for ($i = 0; isset($rules[$i]); $i++) {
-		unset($rules[$i]['seq']);
+	foreach ($rules as &$rule) {
+		unset($rule['seq']);
 	}
-
+	unset($rule);
 	/* commit changes */
 	config_set_path('filter/rule', $rules);
 }
 function filter_rules_compare($a, $b) {
-	if (isset($a['floating']) && isset($b['floating'])) {
-		return $a['seq'] - $b['seq'];
-	} else if (isset($a['floating'])) {
-		return -1;
-	} else if (isset($b['floating'])) {
+	if (isset($a['floating'])) {
+		// Floating rules are placed before Interface rules.
+		if (!isset($b['floating'])) {
+			return -1;
+		}
+	} elseif (isset($b['floating'])) {
+		// Interface rules are placed after Floating rules.
 		return 1;
-	} else if ($a['interface'] == $b['interface']) {
-		return $a['seq'] - $b['seq'];
-	} else {
+	} elseif ($a['interface'] != $b['interface']) {
+		// Interface rules for the same interface are grouped together.
 		return compare_interface_friendly_names($a['interface'], $b['interface']);
 	}
+
+	// Use the sequence number as a last resort.
+	if (isset($a['seq']) && isset($b['seq'])) {
+		return ($a['seq'] <=> $b['seq']);
+	}
+
+	// Nothing to compare.
+	return 0;
 }
 
 function generate_ipv6_from_mac($mac) {

@@ -6958,6 +6958,23 @@ function upgrade_237_to_238() {
 	}
 }
 
+function upgrade_238_to_239() {
+	// The reserved Loopback alias has been renamed so update references.
+	update_alias_name('_loopback46_', '_loopback_');
+
+	// Additional system aliases have been added.
+	rename_conflicting_aliases();
+
+	// linklocal4 logs have been split from the default block logs.
+	if (config_path_enabled('syslog', 'nologdefaultblock')) {
+		config_set_path('syslog/nologlinklocal4', true);
+	}
+	// snort2c logs have been split from the default block logs.
+	if (config_path_enabled('syslog', 'nologdefaultblock')) {
+		config_set_path('syslog/nologsnort2c', true);
+	}
+}
+
 /*
  * Special function that is called independent of current config version. It's
  * a workaround to have config_upgrade running on older versions after next
