@@ -1426,13 +1426,9 @@ if ($_POST['apply']) {
 				}
 				if (!empty($_POST['provider'])) {
 					array_set_path($a_ppps, "{$pppid}/provider", $_POST['provider']);
-				} else {
-					array_set_path($a_ppps, "{$pppid}/provider", true);
 				}
 				if (!empty($_POST['hostuniq'])) {
 					array_set_path($a_ppps, "{$pppid}/hostuniq", strtolower($_POST['hostuniq']));
-				} else {
-					array_set_path($a_ppps, "{$pppid}/hostuniq", true);
 				}
 				array_set_path($a_ppps, "{$pppid}/ondemand", ($_POST['pppoe_dialondemand'] ? true : false));
 
@@ -3716,6 +3712,9 @@ print($form);
 <script type="text/javascript">
 //<![CDATA[
 events.push(function() {
+	// if_pppoe options.
+	var if_pppoetype = <?php if (config_path_enabled('system', 'use_if_pppoe')) { echo 'true'; } else { echo 'false'; } ?>;
+
 	function updateType(t) {
 
 		switch (t) {
@@ -3742,6 +3741,17 @@ events.push(function() {
 			}
 			case "pppoe": {
 				$('.dhcpadvanced, .none, .staticv4, .dhcp, .pptp, .ppp').hide();
+				if (if_pppoetype) {
+					hideInput('hostuniq', true);
+					hideCheckbox('pppoe_dialondemand', true);
+					setRequired('pppoe_idletimeout', false);
+					hideSelect('pppoe_idletimeout', true);
+					show_reset_settings();
+					hideSelect('pppoe-reset-type', true);
+				} else {
+					show_reset_settings($('#pppoe-reset-type').val());
+					setPPPoEDialOnDemandItems();
+				}
 				break;
 			}
 			case "l2tp": {
@@ -4161,12 +4171,10 @@ events.push(function() {
 
 	updateType($('#type').val());
 	updateTypeSix($('#type6').val());
-	show_reset_settings($('#pppoe-reset-type').val());
 	hideClass('dhcp6advanced', true);
 	hideClass('dhcpadvanced', true);
 	show_dhcp6adv();
 	setDHCPoptions();
-	setPPPoEDialOnDemandItems();
 	setPPTPDialOnDemandItems();
 	show_wpaoptions();
 	updatewifistandard($('#standard').val());

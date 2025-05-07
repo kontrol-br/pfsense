@@ -519,6 +519,7 @@ function kea_is_hexstring(string $string): bool {
 }
 
 function services_kea6_configure(bool $with_custom = true) {
+	$has_custom = false;
 	$kea_var_run = g_get('varrun_path') . '/kea';
 	$kea_var_lib = '/var/lib/kea';
 	$kea_var_db = '/var/db/kea';
@@ -1087,6 +1088,7 @@ kea6_skip_first_pool_options:
 			/* Merge custom Kea config */
 			if ($with_custom && !$first_pool) {
 				if (!empty($poolconf['custom_kea_config'])) {
+					$has_custom = true;
 					$keapool = array_merge_override_recursive(
 						$keapool, json_decode(base64_decode($poolconf['custom_kea_config']), true));
 				}
@@ -1133,6 +1135,7 @@ kea6_skip_first_pool_options:
 				/* Merge custom Kea config */
 				if ($with_custom) {
 					if (!empty($sm['custom_kea_config'])) {
+						$has_custom = true;
 						$keares = array_merge_override_recursive(
 							$keares, json_decode(base64_decode($sm['custom_kea_config']), true));
 					}
@@ -1177,6 +1180,7 @@ kea6_skip_first_pool_options:
 		/* Merge custom Kea config */
 		if ($with_custom) {
 			if (!empty($dhcpv6ifconf['custom_kea_config'])) {
+				$has_custom = true;
 				$keasubnet = array_merge_override_recursive(
 					$keasubnet, json_decode(base64_decode($dhcpv6ifconf['custom_kea_config']), true));
 			}
@@ -1220,14 +1224,14 @@ kea6_skip_first_pool_options:
 	$kea_bin = '/usr/local/sbin/kea-dhcp6';
 
 	/* lint/test kea-dhcp6 */
-	if ($with_custom) {
+	if ($with_custom && $has_custom) {
 		$retval = mwexec(implode(' ', [
 			$kea_bin,
 			'-t', $keaconf_path
 		]));
 		if ($retval <> 0) {
 			/* Try again without any custom configuration */
-			file_notice('DHCP', gettext('Failed to lint kea-dhcp6 with custom configurations. See Status > System Logs for more information about this failure.'));
+			file_notice('DHCP', gettext('Failed to start DHCPv6 Server with custom configurations. See Status > System Logs for more information about this failure.'));
 			return (services_kea6_configure(false));
 		}
 	}
@@ -1328,6 +1332,7 @@ function services_dhcpd_configure($family = "all") {
 }
 
 function services_kea4_configure(bool $with_custom = true) {
+	$has_custom = false;
 	$need_ddns_updates = false;
 	$ddns_zones = array();
 
@@ -2017,6 +2022,7 @@ EOD;
 			/* Merge custom Kea config */
 			if ($with_custom && !$first_pool) {
 				if (!empty($poolconf['custom_kea_config'])) {
+					$has_custom = true;
 					$keapool = array_merge_override_recursive(
 						$keapool, json_decode(base64_decode($poolconf['custom_kea_config']), true));
 				}
@@ -2460,6 +2466,7 @@ EOD;
 				/* Merge custom Kea config */
 				if ($with_custom) {
 					if (!empty($sm['custom_kea_config'])) {
+						$has_custom = true;
 						$keares = array_merge_override_recursive(
 							$keares, json_decode(base64_decode($sm['custom_kea_config']), true));
 					}
@@ -2474,6 +2481,7 @@ EOD;
 		/* Merge custom Kea config */
 		if ($with_custom) {
 			if (!empty($dhcpifconf['custom_kea_config'])) {
+				$has_custom = true;
 				$keasubnet = array_merge_override_recursive(
 					$keasubnet, json_decode(base64_decode($dhcpifconf['custom_kea_config']), true));
 			}
@@ -2548,14 +2556,14 @@ EOD;
 	$kea_bin = '/usr/local/sbin/kea-dhcp4';
 
 	/* lint/test kea-dhcp4 */
-	if ($with_custom) {
+	if ($with_custom && $has_custom) {
 		$retval = mwexec(implode(' ', [
 			$kea_bin,
 			'-t', $keaconf_path
 		]));
 		if ($retval <> 0) {
 			/* Try again without any custom configuration */
-			file_notice('DHCP', gettext('Failed to lint kea-dhcp4 with custom configurations. See Status > System Logs for more information about this failure.'));
+			file_notice('DHCP', gettext('Failed to start DHCP Server with custom configurations. See Status > System Logs for more information about this failure.'));
 			return (services_kea4_configure(false));
 		}
 	}
@@ -4536,11 +4544,20 @@ function services_dyndns_configure($int = "") {
 /**
  * Get the source IPv4 or IPv6 address to use for sending a request.
  * @param string $interface A VIP ID, gateway group, or friendly name.
- * @param mixed $address_family Force an IP address family.
+ * @param mixed $address_family Force an IP address family. If not set,
+ *        the address returned is based on the system preference.
  * @return string|false The IP address to use; False otherwise.
  */
 function get_request_source_address($interface, int|null $address_family = null) {
 	$source_address = '';
+	$prefer_ipv4 = config_path_enabled('system', 'prefer_ipv4');
+	// Get the string equivalent for the functions that need it.
+	$address_family_string = match ($address_family) {
+		AF_INET => 'inet',
+		AF_INET6 => 'inet6',
+		// If the address family hasn't been specified, check the system preference.
+		default => $prefer_ipv4 ? 'inet' : 'inet6'
+	};
 
 	// Get the interface gateway.
 	$interface_gateway = '';
@@ -4550,10 +4567,10 @@ function get_request_source_address($interface, int|null $address_family = null)
 		$interface_gateway = $gateways_groups[$interface][0]['gw'];
 	} elseif (str_starts_with($interface, '_vip')) {
 		// Given interface is a VIP.
-		$interface_gateway = get_interface_gateway_name(get_root_interface($interface));
+		$interface_gateway = get_interface_gateway_name(get_root_interface($interface), $address_family_string);
 	} else {
 		// Given interface is a friendly name.
-		$interface_gateway = get_interface_gateway_name($interface);
+		$interface_gateway = get_interface_gateway_name($interface, $address_family_string);
 	}
 
 	if (!empty($interface_gateway)) {
@@ -4562,6 +4579,7 @@ function get_request_source_address($interface, int|null $address_family = null)
 		if (array_get_path($gateways_status, "{$interface_gateway}/status", '') != 'online') {
 			return false;
 		}
+		// Note: Gateway monitoring for IPv6 may be using a link-local address.
 		$source_address_gw = array_get_path($gateways_status, "{$interface_gateway}/srcip", '');
 
 		// If the address family hasn't been specified, base it on the gateway.
@@ -4574,15 +4592,14 @@ function get_request_source_address($interface, int|null $address_family = null)
 	if ($address_family == AF_INET) {
 		$source_address = is_ipaddrv4($source_address_gw) ? $source_address_gw : get_interface_ip($interface);
 	} elseif ($address_family == AF_INET6) {
-		$source_address = is_ipaddrv6($source_address_gw) ? $source_address_gw : get_interface_ipv6($interface);
+		$source_address = (is_ipaddrv6($source_address_gw) && is_v6gua($source_address_gw)) ? $source_address_gw : get_interface_ipv6($interface);
 	} else {
-		$prefer_ipv4 = config_path_enabled('system', 'prefer_ipv4');
 		if ($prefer_ipv4) {
 			$source_address = is_ipaddrv4($source_address_gw) ? $source_address_gw : get_interface_ip($interface);
 		}
 		if (empty($source_address)) {
 			// Also check IPv6 if IPv4 is preferred but not available.
-			$source_address = is_ipaddrv6($source_address_gw) ? $source_address_gw : get_interface_ipv6($interface);
+			$source_address = (is_ipaddrv6($source_address_gw) && is_v6gua($source_address_gw)) ? $source_address_gw : get_interface_ipv6($interface);
 		}
 		if (empty($source_address) && !$prefer_ipv4) {
 			$source_address = is_ipaddrv4($source_address_gw) ? $source_address_gw : get_interface_ip($interface);
