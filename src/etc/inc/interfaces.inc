@@ -4761,7 +4761,7 @@ function interface_6rd_configure($interface, $wancfg) {
 	mwexec("/sbin/ifconfig {$stfiface} inet6 {$rd6prefix}/{$rd6prefixlen}");
 	mwexec("/sbin/ifconfig {$stfiface} stfv4br " . escapeshellarg($wancfg['gateway-6rd']));
 	if ($wancfg['prefix-6rd-v4plen'] >= 0 && $wancfg['prefix-6rd-v4plen'] <= 32) {
-		mwexec("/sbin/ifconfig {$stfiface} stfv4net {$ip4address}/" . escapeshellarg($wancfg['prefix-6rd-v4plen']));
+		mwexec("/sbin/ifconfig {$stfiface} stfv4net {$ip4address}/" . escapeshellarg(($wancfg['prefix-6rd-v4plen'] > 0) ? $wancfg['prefix-6rd-v4plen'] : 32));
 	}
 	$parentmtu = get_interface_mtu(get_real_interface($interface));
 	if (isset($wancfg['mtu']) && ($wancfg['mtu'] >= 1300)) {
@@ -7711,7 +7711,7 @@ function get_interface_addresses($interface, $linklocal_fallback = false) {
 	if ($v4addrs) {
 		$v4addr = array_shift($v4addrs);
 		$ifaddrs['ipaddr'] = $v4addr['addr'];
-		foreach(array("subnetbits", "subnet", "broadcast", "tunnel") as $key) {
+		foreach(array("subnetbits", "subnet", "broadcast", "dstaddr") as $key) {
 			if (array_key_exists($key, $v4addr)) {
 				$ifaddrs[$key] = $v4addr[$key];
 			}
@@ -7868,7 +7868,13 @@ function get_interface_addresses($interface, $linklocal_fallback = false) {
 		foreach ($v6addrs as $addr) {
 			if ($addr['addr'] == $selected_address) {
 				$v6addr = $addr;
-				break;
+			}
+			// Always get the peer address
+			if (isset($addr['dstaddr'])) {
+				$ifaddrs['dstaddr6'] = $addr['dstaddr'];
+				if (is_linklocal($addr['dstaddr'])) {
+					$ifaddrs['dstaddr6'] .= "%{$interface}";
+				}
 			}
 		}
 
@@ -7878,10 +7884,8 @@ function get_interface_addresses($interface, $linklocal_fallback = false) {
 				$ifaddrs['ipaddr6'] .= "%{$interface}";
 			}
 	
-			foreach(array("subnetbits", "tunnel") as $key) {
-				if (array_key_exists($key, $v6addr)) {
-					$ifaddrs[$key.'6'] = $v6addr[$key];
-				}
+			if (array_key_exists('subnetbits', $v6addr)) {
+				$ifaddrs['subnetbits6'] = $v6addr['subnetbits'];
 			}
 	
 			$selected_address_flags = [];
