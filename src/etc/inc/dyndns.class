@@ -25,9 +25,10 @@
 	 * PHP.updateDNS (pfSense version)
 	 *
 	 * +====================================================+
-	 *  Services Supported:
-	 *    - All-Inkl (all-inkl.com)
-	 *    - Amazon Route 53 (aws.amazon.com)
+         *  Services Supported:
+         *    - All-Inkl (all-inkl.com)
+         *    - AutoIP (autoip.com.br)
+         *    - Amazon Route 53 (aws.amazon.com)
 	 *    - Azure DNS (azure.microsoft.com)
 	 *    - City Network (citynetwork.se)
 	 *    - Cloudflare (www.cloudflare.com)
@@ -93,8 +94,9 @@
 	 *    - _debug()
 	 *    - _checkIP()
 	 * +----------------------------------------------------+
-	 *  All-Inkl        - Last Tested: 12 November 2016
-	 *  Amazon Route 53 - Last Tested: 04 February 2017
+        *  All-Inkl        - Last Tested: 12 November 2016
+        *  AutoIP          - Last Tested: NEVER
+        *  Amazon Route 53 - Last Tested: 04 February 2017
 	 *  Azure DNS       - Last Tested: 08 March 2018
 	 *  City Network    - Last Tested: 13 November 2013
 	 *  Cloudflare      - Last Tested: 05 September 2016
@@ -182,22 +184,23 @@
 		var $_dnsPort;
 		var $_dnsUpdateURL;
 		var $_dnsZoneID;
-		var $_dnsTTL;
-		var $status;
-		var $_debugID;
-		var $_if;
-		var $_dnsResultMatch;
-		var $_dnsRequestIf;
-		var $_dnsRequestIfIP;
-		var $_dnsVerboseLog;
-		var $_curlIpresolveV4;
-		var $_curlSslVerifypeer;
-		var $_dnsMaxCacheAgeDays;
-		var $_dnsDummyUpdateDone;
-		var $_forceUpdateNeeded;
-		var $_useIPv6;
-		var $_existingRecords;
-		var $_curlProxy;
+                var $_dnsTTL;
+                var $status;
+                var $_debugID;
+                var $_if;
+                var $_dnsResultMatch;
+                var $_dnsRequestIf;
+                var $_dnsRequestIfIP;
+                var $_dnsVerboseLog;
+                var $_curlIpresolveV4;
+                var $_curlSslVerifypeer;
+                var $_dnsMaxCacheAgeDays;
+                var $_dnsDummyUpdateDone;
+                var $_forceUpdateNeeded;
+                var $_useIPv6;
+                var $_existingRecords;
+               var $_curlProxy;
+               var $_dnsDescr;
 
 		/*
 		 * Public Constructor Function (added 12 July 05) [beta]
@@ -212,8 +215,8 @@
 					$dnsWildcard = 'OFF', $dnsProxied = false, $dnsMX = '', $dnsIf = '', $dnsBackMX = '',
 					$dnsServer = '', $dnsPort = '', $dnsUpdateURL = '', $forceUpdate = false,
 					$dnsZoneID ='', $dnsTTL='', $dnsResultMatch = '', $dnsRequestIf = '', $dnsMaxCacheAge = '',
-					$dnsID = '', $dnsVerboseLog = false, $curlIpresolveV4 = false, $curlSslVerifypeer = true,
-					$curlProxy = false) {
+                                       $dnsID = '', $dnsVerboseLog = false, $curlIpresolveV4 = false, $curlSslVerifypeer = true,
+                                       $curlProxy = false, $dnsDescr = '') {
 
 			global $config, $g, $dyndns_split_domain_types;
 			if (in_array($dnsService, $dyndns_split_domain_types)) {
@@ -226,10 +229,11 @@
 			$this->_cacheFile_v6 = "{$g['conf_path']}/dyndns_{$dnsIf}{$dnsService}" . escapeshellarg($this->_FQDN) . "{$dnsID}_v6.cache";
 			$this->_debugFile = "{$g['varetc_path']}/dyndns_{$dnsIf}{$dnsService}" . escapeshellarg($this->_FQDN) . "{$dnsID}.debug";
 
-			$this->_curlIpresolveV4 = $curlIpresolveV4;
-			$this->_curlSslVerifypeer = $curlSslVerifypeer;
-			$this->_curlProxy = $curlProxy;
-			$this->_dnsVerboseLog = $dnsVerboseLog;
+                       $this->_curlIpresolveV4 = $curlIpresolveV4;
+                       $this->_curlSslVerifypeer = $curlSslVerifypeer;
+                       $this->_curlProxy = $curlProxy;
+                       $this->_dnsDescr = $dnsDescr;
+                       $this->_dnsVerboseLog = $dnsVerboseLog;
 			if ($this->_dnsVerboseLog) {
 				log_error(gettext("Dynamic DNS: updatedns() starting"));
 			}
@@ -408,8 +412,9 @@
 				$this->_error(10);
 			} else {
 				switch ($this->_dnsService) {
-					case 'all-inkl':
-					case 'azure':
+                                       case 'all-inkl':
+                                       case 'autoip':
+                                       case 'azure':
 					case 'azurev6':
 					case 'citynetwork':
 					case 'cloudflare':
@@ -1323,17 +1328,30 @@
 					}
 					curl_setopt($ch, CURLOPT_URL, $server . $port . '?hostname=' . $this->_dnsHost . '&myip=' . $this->_dnsIP);
 					break;
-				case 'all-inkl':
-					$needsIP = FALSE;
-					$server = 'https://dyndns.kasserver.com/';
-					curl_setopt($ch, CURLOPT_USERPWD, $this->_dnsUser . ':' . $this->_dnsPass);
-					curl_setopt($ch, CURLOPT_URL, $server . 'myip=' . $this->_dnsIP);
-					break;
-				case 'hover':
-					$needsIP = FALSE;
-					$port = "";
-					curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
-					curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 1);
+                                case 'all-inkl':
+                                        $needsIP = FALSE;
+                                        $server = 'https://dyndns.kasserver.com/';
+                                        curl_setopt($ch, CURLOPT_USERPWD, $this->_dnsUser . ':' . $this->_dnsPass);
+                                        curl_setopt($ch, CURLOPT_URL, $server . 'myip=' . $this->_dnsIP);
+                                        break;
+                               case 'autoip':
+                                       $needsIP = TRUE;
+                                       $server = 'https://update.autoip.com.br/nic/update';
+                                       $port = '';
+                                       if ($this->_dnsServer) {
+                                               $server = $this->_dnsServer;
+                                       }
+                                       if ($this->_dnsPort) {
+                                               $port = ':' . $this->_dnsPort;
+                                       }
+                                       curl_setopt($ch, CURLOPT_USERPWD, $this->_dnsUser . ':' . $this->_dnsPass);
+                                       curl_setopt($ch, CURLOPT_URL, $server . $port . '?hostname=' . $this->_dnsHost . '&myip=' . $this->_dnsIP . '&comment=' . rawurlencode($this->_dnsDescr));
+                                       break;
+                                case 'hover':
+                                        $needsIP = FALSE;
+                                        $port = "";
+                                        curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+                                        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 1);
 
 					//step 1: login to API
 					$post_data['username'] = $this->_dnsUser;
@@ -2877,27 +2895,44 @@
 						$this->_debug($data);
 					}
 					break;
-				case 'all-inkl':
- 					if (preg_match('/good\s' . $this->_dnsIP . '/i', $data)) {
-							$status = $status_intro . $success_str . gettext("IP Address Changed Successfully!") . " (" . $this->_dnsIP . ")";
- 							$successful_update = true;
- 					} else if (preg_match('/good/i', $data)) {
-						$status = $status_intro . $error_str . gettext("Result did not match.");
-					} else if (preg_match("/\s401\sUnauthorized/i", $header)) {
-						$status = $status_intro . $error_str . gettext("Invalid username or password");
-					}
-					else {
-							$status = $status_intro . "(" . gettext("Unknown Response") . ")";
-							log_error($status_intro . gettext("PAYLOAD:") . " " . $header . $data);
- 							$this->_debug($data);
- 							$this->_debug($header);
- 					}
- 					break;
-				case 'hover':
-					if (preg_match('/succeeded":true/i', $data)) {
-						$status = $status_intro . $success_str . gettext("IP Address Changed Successfully!") . " (" . $this->_dnsIP . ")";
-						$successful_update = true;
-					} else {
+                               case 'all-inkl':
+                                       if (preg_match('/good\s' . $this->_dnsIP . '/i', $data)) {
+                                                       $status = $status_intro . $success_str . gettext("IP Address Changed Successfully!") . " (" . $this->_dnsIP . ")";
+                                                       $successful_update = true;
+                                       } else if (preg_match('/good/i', $data)) {
+                                               $status = $status_intro . $error_str . gettext("Result did not match.");
+                                       } else if (preg_match("/\s401\sUnauthorized/i", $header)) {
+                                               $status = $status_intro . $error_str . gettext("Invalid username or password");
+                                       }
+                                       else {
+                                                       $status = $status_intro . "(" . gettext("Unknown Response") . ")";
+                                                       log_error($status_intro . gettext("PAYLOAD:") . " " . $header . $data);
+                                                       $this->_debug($data);
+                                                       $this->_debug($header);
+                                       }
+                                       break;
+                               case 'autoip':
+                                       if (preg_match('/good/i', $data)) {
+                                               $status = $status_intro . $success_str . gettext("IP Address Changed Successfully!") . " (" . $this->_dnsIP . ")";
+                                               $successful_update = true;
+                                       } else if (preg_match('/nochg/i', $data)) {
+                                               $status = $status_intro . $success_str . gettext("No Change In IP Address");
+                                               $successful_update = true;
+                                       } else if (preg_match('/nohost/i', $data)) {
+                                               $status = $status_intro . $error_str . gettext("No such host");
+                                       } else if (preg_match('/noauth/i', $data)) {
+                                               $status = $status_intro . $error_str . gettext("User Authorization Failed");
+                                       } else {
+                                               $status = $status_intro . "(" . gettext("Unknown Response") . ")";
+                                               log_error($status_intro . gettext("PAYLOAD:") . " " . $data);
+                                               $this->_debug($data);
+                                       }
+                                       break;
+                               case 'hover':
+                                       if (preg_match('/succeeded":true/i', $data)) {
+                                               $status = $status_intro . $success_str . gettext("IP Address Changed Successfully!") . " (" . $this->_dnsIP . ")";
+                                               $successful_update = true;
+                                       } else {
 						$status = $status_intro . "(" . gettext("Unknown Response") . ")";
 						log_error($status_intro . gettext("PAYLOAD:") . " " . $data);
 						$this->_debug($data);
