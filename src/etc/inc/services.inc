@@ -255,15 +255,22 @@ function services_radvd_configure($blacklist = array()) {
 			$radvdconf .= "\t\tRemoveRoute on;\n";
 		}
 		$radvdconf .= "\t};\n";
-		if (isset($dhcpv6ifconf['ranat64'])) {
-			if (is_string($dhcpv6ifconf['ranat64']) && is_subnetv6($dhcpv6ifconf['ranat64'])) {
-				if (is_numericint($dhcpv6ifconf['ranat64_lifetime'])) {
-					$ranat64_lifetime = $dhcpv6ifconf['ranat64_lifetime'];
+		if (array_path_enabled($dhcpv6ifconf, 'pref64')) {
+			if (empty($dhcpv6ifconf['pref64']['prefix'])) {
+				$nat64_prefix = NAT64_WELLKNOWN_PREFIX_CIDR;
+			} elseif (is_subnetv6($dhcpv6ifconf['pref64']['prefix'])) {
+				$nat64_prefix = $dhcpv6ifconf['pref64']['prefix'];
+			} else {
+				$nat64_prefix = '';
+			}
+			if (!empty($nat64_prefix)) {
+				if (is_numericint($dhcpv6ifconf['pref64']['lifetime'])) {
+					$nat64_lifetime = $dhcpv6ifconf['pref64']['lifetime'];
 				} else {
-					$ranat64_lifetime = $ramaxrtradvinterval * 3;
+					$nat64_lifetime = $ramaxrtradvinterval * 3;
 				}
-				$radvdconf .= "\tnat64prefix {$dhcpv6ifconf['ranat64']} {\n";
-				$radvdconf .= "\t\tAdvValidLifetime {$ranat64_lifetime};\n";
+				$radvdconf .= "\tnat64prefix {$nat64_prefix} {\n";
+				$radvdconf .= "\t\tAdvValidLifetime {$nat64_lifetime};\n";
 				$radvdconf .= "\t};\n";
 			} else {
 				log_error("radvd: skipping nat64prefix for interface {$dhcpv6if} because the prefix is invalid.");
@@ -418,15 +425,22 @@ function services_radvd_configure($blacklist = array()) {
 		$radvdconf .= "\t\tAdvAutonomous on;\n";
 		$radvdconf .= "\t};\n";
 
-		if (isset($dhcpv6ifconf['ranat64'])) {
-			if (is_string($dhcpv6ifconf['ranat64']) && is_subnetv6($dhcpv6ifconf['ranat64'])) {
-				if (is_numericint($dhcpv6ifconf['ranat64_lifetime'])) {
-					$ranat64_lifetime = $dhcpv6ifconf['ranat64_lifetime'];
+		if (array_path_enabled($dhcpv6ifconf, 'pref64')) {
+			if (empty($dhcpv6ifconf['pref64']['prefix'])) {
+				$nat64_prefix = NAT64_WELLKNOWN_PREFIX_CIDR;
+			} elseif (is_subnetv6($dhcpv6ifconf['pref64']['prefix'])) {
+				$nat64_prefix = $dhcpv6ifconf['pref64']['prefix'];
+			} else {
+				$nat64_prefix = '';
+			}
+			if (!empty($nat64_prefix)) {
+				if (is_numericint($dhcpv6ifconf['pref64']['lifetime'])) {
+					$nat64_lifetime = $dhcpv6ifconf['pref64']['lifetime'];
 				} else {
-					$ranat64_lifetime = $ramaxrtradvinterval * 3;
+					$nat64_lifetime = $ramaxrtradvinterval * 3;
 				}
-				$radvdconf .= "\tnat64prefix {$dhcpv6ifconf['ranat64']} {\n";
-				$radvdconf .= "\t\tAdvValidLifetime {$ranat64_lifetime};\n";
+				$radvdconf .= "\tnat64prefix {$nat64_prefix} {\n";
+				$radvdconf .= "\t\tAdvValidLifetime {$nat64_lifetime};\n";
 				$radvdconf .= "\t};\n";
 			} else {
 				log_error("radvd: skipping nat64prefix for interface {$if} because the prefix is invalid.");
@@ -610,9 +624,24 @@ function services_kea6_configure(bool $with_custom = true) {
 		'lease-checks' => 'fix-del'
 	];
 
-	/* required for HA support */
+	/* Store domain-search response option and remote address and interface name in lease database */
 	$keaconf['Dhcp6']['hooks-libraries'][] = [
 		'library' => '/usr/local/lib/kea/hooks/libdhcp_lease_cmds.so',
+		'parameters' => [
+			'binding-variables' => [[
+				'name' => 'domain-search',
+				'expression' => 'option[24].text',
+				'source' => 'response'
+			], [
+				'name' => 'remote-addr',
+				'expression' => 'pkt.src',
+				'source' => 'query'
+			], [
+				'name' => 'iface-name',
+				'expression' => 'pkt.iface',
+				'source' => 'query'
+			]]
+		]
 	];
 
 	if (config_path_enabled('kea6/ha')) {
@@ -711,14 +740,6 @@ function services_kea6_configure(bool $with_custom = true) {
 		$keaconf['Dhcp6']['hooks-libraries'][] = $kea_ha_hook;
 	}
 
-	/* Store DHCP response options in the lease database */
-	$lease_options = '/usr/local/lib/kea/hooks/libdhcp_lease_options.so';
-	if (file_exists($lease_options)) {
-		$keaconf['Dhcp6']['hooks-libraries'][] = [
-			'library' => $lease_options,
-		];
-	}
-
 	$run_scriptd_base = g_get('conf_path') . '/kea6_scripts.d';
 	safe_mkdir($run_scriptd_base);
 
@@ -801,7 +822,7 @@ EOD;
 		chmod($run_script_path, 0755);
 	}
 
-	$run_script_main = '/usr/local/bin/kea_run6';
+	$run_script_main = '/usr/local/share/kea/scripts/kea_run6';
 	if (file_exists($run_script_main)) {
 		$keaconf['Dhcp6']['hooks-libraries'][] = [
 			'library' => '/usr/local/lib/kea/hooks/libdhcp_run_script.so',
@@ -1431,9 +1452,16 @@ function services_kea4_configure(bool $with_custom = true) {
 		'lease-checks' => 'fix-del'
 	];
 
-	/* required for HA support */
+	/* Store domain-name response option in lease database */
 	$keaconf['Dhcp4']['hooks-libraries'][] = [
 		'library' => '/usr/local/lib/kea/hooks/libdhcp_lease_cmds.so',
+		'parameters' => [
+			'binding-variables' => [[
+				'name' => 'domain-name',
+				'expression' => 'option[15].text',
+				'source' => 'response'
+			]]
+		]
 	];
 
 	if (config_path_enabled('kea/ha')) {
@@ -1532,14 +1560,6 @@ function services_kea4_configure(bool $with_custom = true) {
 		$keaconf['Dhcp4']['hooks-libraries'][] = $kea_ha_hook;
 	}
 
-	/* Store DHCP response options in the lease database */
-	$lease_options = '/usr/local/lib/kea/hooks/libdhcp_lease_options.so';
-	if (file_exists($lease_options)) {
-		$keaconf['Dhcp4']['hooks-libraries'][] = [
-			'library' => $lease_options,
-		];
-	}
-
 	$run_scriptd_base = g_get('conf_path') . '/kea4_scripts.d';
 	safe_mkdir($run_scriptd_base);
 	$run_script_path = $run_scriptd_base . '/kea2unbound.sh';
@@ -1583,7 +1603,7 @@ EOD;
 		chmod($run_script_path, 0755);
 	}
 
-	$run_script_main = '/usr/local/bin/kea_run4';
+	$run_script_main = '/usr/local/share/kea/scripts/kea_run4';
 	if (file_exists($run_script_main)) {
 		$keaconf['Dhcp4']['hooks-libraries'][] = [
 			'library' => '/usr/local/lib/kea/hooks/libdhcp_run_script.so',
