@@ -4592,6 +4592,32 @@ function interface_track6_configure($interface, $wancfg, $linkupevent = false) {
 	return 0;
 }
 
+function generate_6rd_prefix($prefix_6rd, $wanv4, $prefix_6rd_v4plen, $track6_prefix_id) {
+	/* create the long prefix notation for math, save the prefix length */
+	$rd6prefix = explode("/", $prefix_6rd);
+	$rd6prefixlen = $rd6prefix[1];
+	$rd6prefix = Net_IPv6::uncompress($rd6prefix[0]);
+
+	/* binary presentation of the prefix for all 128 bits. */
+	$rd6lanbin = convert_ipv6_to_128bit($rd6prefix);
+
+	/* just save the left prefix length bits */
+	$rd6lanbin = substr($rd6lanbin, 0, $rd6prefixlen);
+	/* add the v4 address, offset n bits from the left */
+	$rd6lanbin .= substr(sprintf("%032b", hexdec(return_hex_ipv4($wanv4))), (0 + $prefix_6rd_v4plen), 32);
+
+	/* add the custom prefix id, max 32bits long? (64 bits - (prefixlen + (32 - v4plen)) */
+	/* 64 - (37 + (32 - 17)) = 8 == /52 */
+	$restbits = 64 - ($rd6prefixlen + (32 - $prefix_6rd_v4plen));
+	// echo "64 - (prefixlen {$rd6prefixlen} + v4len (32 - {$prefix_6rd_v4plen})) = {$restbits} \n";
+	$rd6lanbin .= substr(sprintf("%032b", str_pad($track6_prefix_id, 32, "0", STR_PAD_LEFT)), (32 - $restbits), 32);
+	/* fill the rest out with zeros */
+	$rd6lanbin = str_pad($rd6lanbin, 128, "0", STR_PAD_RIGHT);
+
+	/* convert the 128 bits for the lan address back into a valid IPv6 address */
+	return(convert_128bit_to_ipv6($rd6lanbin));
+}
+
 function interface_track6_6rd_configure($interface, $lancfg) {
 	global $interface_ipv6_arr_cache;
 	global $interface_snv6_arr_cache;
@@ -4616,31 +4642,8 @@ function interface_track6_6rd_configure($interface, $lancfg) {
 		log_error(sprintf(gettext('The interface IPv4 \'%1$s\' address on interface \'%2$s\' is not valid, not configuring 6RD tunnel'), $ip4address, $lancfg['track6-interface']));
 		return;
 	}
-	$hexwanv4 = return_hex_ipv4($ip4address);
 
-	/* create the long prefix notation for math, save the prefix length */
-	$rd6prefix = explode("/", $wancfg['prefix-6rd']);
-	$rd6prefixlen = $rd6prefix[1];
-	$rd6prefix = Net_IPv6::uncompress($rd6prefix[0]);
-
-	/* binary presentation of the prefix for all 128 bits. */
-	$rd6lanbin = convert_ipv6_to_128bit($rd6prefix);
-
-	/* just save the left prefix length bits */
-	$rd6lanbin = substr($rd6lanbin, 0, $rd6prefixlen);
-	/* add the v4 address, offset n bits from the left */
-	$rd6lanbin .= substr(sprintf("%032b", hexdec($hexwanv4)), (0 + $wancfg['prefix-6rd-v4plen']), 32);
-
-	/* add the custom prefix id, max 32bits long? (64 bits - (prefixlen + (32 - v4plen)) */
-	/* 64 - (37 + (32 - 17)) = 8 == /52 */
-	$restbits = 64 - ($rd6prefixlen + (32 - $wancfg['prefix-6rd-v4plen']));
-	// echo "64 - (prefixlen {$rd6prefixlen} + v4len (32 - {$wancfg['prefix-6rd-v4plen']})) = {$restbits} \n";
-	$rd6lanbin .= substr(sprintf("%032b", str_pad($lancfg['track6-prefix-id'], 32, "0", STR_PAD_LEFT)), (32 - $restbits), 32);
-	/* fill the rest out with zeros */
-	$rd6lanbin = str_pad($rd6lanbin, 128, "0", STR_PAD_RIGHT);
-
-	/* convert the 128 bits for the lan address back into a valid IPv6 address */
-	$rd6lan = convert_128bit_to_ipv6($rd6lanbin) ."1";
+	$rd6lan = generate_6rd_prefix($wancfg['prefix-6rd'], $ip4address, $wancfg['prefix-6rd-v4plen'], $lancfg['track6-prefix-id']) . '1';
 
 	$lanif = get_real_interface($interface);
 	$oip = find_interface_ipv6($lanif);
@@ -7952,5 +7955,44 @@ function get_interface_addresses_all(string $interface): array {
 	}
 
 	return $addresses;
+}
+
+function build_ipv6interface_list() {
+	global $form;
+
+	$list = ['' => ''];
+
+	$interfaces = get_configured_interface_with_descr(true);
+	$dynv6ifs = [];
+
+	foreach ($interfaces as $iface => $ifacename) {
+		switch (config_get_path("interfaces/{$iface}/ipaddrv6")) {
+			case "6to4":
+			case "6rd":
+			case "dhcp6":
+				array_set_path($dynv6ifs,
+					$iface,
+					[
+						'name' => $ifacename,
+						'ipv6_num_prefix_ids' => pow(2, (int) calculate_ipv6_delegation_length($iface)) - 1
+					]);
+				break;
+			default:
+				continue 2;
+		}
+	}
+
+	foreach ($dynv6ifs as $iface => $ifacedata) {
+		array_set_path($list, $iface, array_get_path($ifacedata, 'name'));
+
+		$form->addGlobal(new Form_Input(
+			'ipv6-num-prefix-ids-' . $iface,
+			null,
+			'hidden',
+			array_get_path($ifacedata, 'ipv6_num_prefix_ids')
+		));
+	}
+
+	return($list);
 }
 ?>
