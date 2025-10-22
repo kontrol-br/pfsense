@@ -1010,7 +1010,8 @@ EOD;
 				$keapool['pool'] = $range_from . ' - ' . $range_to;
 			}
 
-			$keapool['client-class'] = 'pool_' . $dhcpv6if . '_'. $all_pools_idx;
+			$pool_class = 'pool_' . $dhcpv6if . '_'. $all_pools_idx;
+			$keapool['client-classes'][] = $pool_class;
 
 			$class_exprs = [];
 
@@ -1107,7 +1108,7 @@ EOD;
 
 kea6_skip_first_pool_options:
 			$keaconf['Dhcp6']['client-classes'][] = [
-				'name' => $keapool['client-class'],
+				'name' => $pool_class,
 				'test' => $pool_client_class_test
 			];
 
@@ -1795,7 +1796,8 @@ EOD;
 			}
 
 			$keapool['pool'] = $poolconf['range']['from'] . ' - '. $poolconf['range']['to'];
-			$keapool['client-class'] = 'pool_' . $dhcpif . '_'. $all_pools_idx;
+			$pool_class = 'pool_' . $dhcpif . '_'. $all_pools_idx;
+			$keapool['client-classes'][] = $pool_class;
 
 			$class_exprs = $mac_exprs = [];
 
@@ -2040,7 +2042,7 @@ EOD;
 			}
 
 			$keaconf['Dhcp4']['client-classes'][] = [
-				'name' => $keapool['client-class'],
+				'name' => $pool_class,
 				'test' => $pool_client_class_test
 			];
 
@@ -4570,10 +4572,11 @@ function services_dyndns_configure($int = "") {
  * @param string $interface A VIP ID, gateway group, or friendly name.
  * @param mixed $address_family Force an IP address family. If not set,
  *        the address returned is based on the system preference.
- * @return string|false The IP address to use; False otherwise.
+ * @return array [0] The IP address to use, [1] error string.
  */
-function get_request_source_address($interface, int|null $address_family = null) {
+function get_request_source_address($interface, int|null $address_family = null): array {
 	$source_address = '';
+	$error = null;
 	$prefer_ipv4 = config_path_enabled('system', 'prefer_ipv4');
 	// Get the string equivalent for the functions that need it.
 	$address_family_string = match ($address_family) {
@@ -4601,66 +4604,61 @@ function get_request_source_address($interface, int|null $address_family = null)
 		// Bail early if the gateway is down.
 		$gateways_status = return_gateways_status(true);
 		if (array_get_path($gateways_status, "{$interface_gateway}/status", '') != 'online') {
-			return false;
-		}
-
-		// Check for the gateway group VIP preference.
-		$use_vip = false;
-		$source_address_gw = array_get_path($gateways_groups, "{$interface}/0/vip", '');
-		if (!empty($source_address_gw)) {
-			$vip_carp_status = get_carp_bind_status($source_address_gw);
-			if (empty($vip_carp_status)) {
-				// IP alias VIP not on CARP parent.
-				$use_vip = true;
-			} elseif ($vip_carp_status == 'MASTER') {
-				// CARP VIP or IP alias on CARP parent
-				$use_vip = true;
-			}
-		}
-		if ($use_vip) {
-			$vip_list = get_configured_vip_list();
-			if (isset($vip_list[$source_address_gw])) {
-				$source_address_gw = $vip_list[$source_address_gw];
-			}
-		} else {
-			$source_address_gw = '';
-		}
-
-		if (empty($source_address_gw)) {
-			// Note: Gateway monitoring for IPv6 may be using a link-local address.
-			$source_address_gw = array_get_path($gateways_status, "{$interface_gateway}/srcip", '');
+			$error = 'gateway not online';
+			return [$source_address, $error];
 		}
 
 		// If the address family hasn't been specified, base it on the gateway.
 		if (!isset($address_family)) {
-			$address_family = is_ipaddrv4($source_address_gw) ? AF_INET : AF_INET6;
+			$address_family = is_ipaddrv4(array_get_path($gateways_status, "{$interface_gateway}/srcip", '')) ? AF_INET : AF_INET6;
 		}
 	}
 
-	// Prefer the source address on the gateway group.
+	$gateway_group_vip = null;
+	// Check for the gateway group VIP preference.
+	if (isset($gateways_groups[$interface]) && !empty(array_get_path($gateways_groups, "{$interface}/0/vip", ''))) {
+		$vip_carp_status = get_carp_bind_status($gateways_groups[$interface][0]['vip']);
+		if (!empty($vip_carp_status) && ($vip_carp_status != 'MASTER')) {
+			// CARP VIP or IP alias on CARP parent is unavailable.
+			$error = 'CARP not master';
+			return [$source_address, $error];
+		} else {
+			// Use the preferred VIP.
+			$gateway_group_vip = $gateways_groups[$interface][0]['vip'];
+		}
+	}
+
 	if ($address_family == AF_INET) {
-		$source_address = is_ipaddrv4($source_address_gw) ? $source_address_gw : get_interface_ip($interface);
+		$source_address = get_interface_ip($gateway_group_vip ?? $interface);
 	} elseif ($address_family == AF_INET6) {
-		$source_address = (is_ipaddrv6($source_address_gw) && is_v6gua($source_address_gw)) ? $source_address_gw : get_interface_ipv6($interface);
+		$source_address = get_interface_ipv6($gateway_group_vip ?? $interface);
+		if (is_linklocal($source_address)) {
+			$source_address = '';
+		}
 	} else {
 		if ($prefer_ipv4) {
-			$source_address = is_ipaddrv4($source_address_gw) ? $source_address_gw : get_interface_ip($interface);
+			$source_address = get_interface_ip($gateway_group_vip ?? $interface);
 		}
 		if (empty($source_address)) {
 			// Also check IPv6 if IPv4 is preferred but not available.
-			$source_address = (is_ipaddrv6($source_address_gw) && is_v6gua($source_address_gw)) ? $source_address_gw : get_interface_ipv6($interface);
+			$source_address = get_interface_ipv6($gateway_group_vip ?? $interface);
+			if (is_linklocal($source_address)) {
+				$source_address = '';
+			}
 		}
 		if (empty($source_address) && !$prefer_ipv4) {
-			$source_address = is_ipaddrv4($source_address_gw) ? $source_address_gw : get_interface_ip($interface);
+			// Check IPv4 if IPv6 is preferred but not available.
+			$source_address = get_interface_ip($gateway_group_vip ?? $interface);
 		}
 	}
 
 	// Bail if no IPv4 or IPv6 address is found for the given interface.
 	if (empty($source_address) || !is_ipaddr($source_address)) {
-		return false;
+		$error = 'no IP address for interface';
+		return [$source_address, $error];
 	}
 
-	return $source_address;
+	return [$source_address, $error];
 }
 
 /**
@@ -4673,8 +4671,8 @@ function get_request_source_address($interface, int|null $address_family = null)
 function dyndnsCheckIP($interface, string|null $mode = null, int|null $address_family = null) {
 	global $factory_default_checkipservice;
 
-	$interface_address = get_request_source_address($interface, $address_family);
-	if ($interface_address === false) {
+	list($interface_address, $error) = get_request_source_address($interface, $address_family);
+	if (isset($error)) {
 		return false;
 	} elseif ($mode == 'never') {
 		return $interface_address;
@@ -5377,27 +5375,24 @@ function services_dnsupdate_process($int = "", $updatehost = "", $forced = false
 			continue;
 		}
 
-		/* determine interface name */
-		$if = get_failover_interface($dnsupdate['interface']);
-
 		/* Determine address to update and default binding address */
 		if (isset($dnsupdate['usepublicip'])) {
-			$wanip = dyndnsCheckIP($if, null, AF_INET);
+			$wanip = dyndnsCheckIP($dnsupdate['interface'], null, AF_INET);
 			if (!$wanip || is_private_ip($wanip)) {
 				log_error(sprintf(gettext(
 				    "phpDynDNS: Not updating %s A record because the public IP address cannot be determined."),
 				    $dnsupdate['host']));
 				continue;
 			}
-			$bindipv4 = get_interface_ip($if);
+			list($bindipv4, $error) = get_request_source_address($dnsupdate['interface'], AF_INET);
 		} else {
-			$wanip = get_interface_ip($if);
+			list($wanip, $error) = get_request_source_address($dnsupdate['interface'], AF_INET);
 			$bindipv4 = $wanip;
 		}
 		if (is_stf_interface($dnsupdate['interface'])) {
 			$wanipv6 = get_interface_ipv6($dnsupdate['interface'] . '_stf');
 		} else {
-			$wanipv6 = get_interface_ipv6($if);
+			list($wanipv6, $error) = get_request_source_address($dnsupdate['interface'], AF_INET6);
 		}
 		$bindipv6 = $wanipv6;
 
@@ -5408,11 +5403,11 @@ function services_dnsupdate_process($int = "", $updatehost = "", $forced = false
 			$bindipv6 = "";
 		} elseif (!empty($dnsupdate['updatesource'])) {
 			/* Find the alternate binding address */
-			$bindipv4 = get_interface_ip($dnsupdate['updatesource']);
+			list($bindipv4, $error) = get_request_source_address($dnsupdate['updatesource'], AF_INET);
 			if (is_stf_interface($dnsupdate['interface'])) {
 				$bindipv6 = get_interface_ipv6($dnsupdate['updatesource'] . '_stf');
 			} else {
-				$bindipv6 = get_interface_ipv6($dnsupdate['updatesource']);
+				list($bindipv6, $error) = get_request_source_address($dnsupdate['updatesource'], AF_INET6);
 			}
 		}
 
@@ -5560,6 +5555,7 @@ EOD;
 		$cmd .= " {$g['varetc_path']}/nsupdatecmds{$i}";
 
 		if (mwexec($cmd) == 0) {
+			$if = get_real_interface($dnsupdate['interface']);
 			if (!empty($cacheFile)) {
 				@file_put_contents($cacheFile,
 				    "{$wanip}|{$currentTime}");
