@@ -804,10 +804,10 @@ function conv_log_filter($logfile, $nentries, $tail = 500, $filtertext = "", $fi
 			break;
 		case 'system':
 		case 'vpn_service':
-			$patterns['rfc3164'] .= $base_patterns['rfc3164']['date_pattern'] . "\ +" .
-						$base_patterns['rfc3164']['host_pattern'] . "\ +" .
+			$patterns['rfc3164'] .= $base_patterns['rfc3164']['date_pattern'] . "\ " .
+						$base_patterns['rfc3164']['host_pattern'] . "\ " .
 						$base_patterns['rfc3164']['process_pattern'] .
-						$base_patterns['rfc3164']['pid_pattern'] . "\ +" .
+						$base_patterns['rfc3164']['pid_pattern'] . "\ " .
 						$base_patterns['rfc3164']['log_message_pattern'] . "$";
 			$patterns['rfc5424'] .= $base_patterns['rfc5424']['date_pattern'] . "\ " .
 						$base_patterns['rfc5424']['host_pattern'] . "\ " .
@@ -820,8 +820,8 @@ function conv_log_filter($logfile, $nentries, $tail = 500, $filtertext = "", $fi
 			$type_pattern = "\(.*?\)";
 			$ip_address_pattern = "\(.*?\)";
 			$user_pattern = "\(.*?\)";
-			$patterns['rfc3164'] .= $base_patterns['rfc3164']['date_pattern'] . "\ +" .
-						$base_patterns['rfc3164']['host_pattern'] . "\ +" .
+			$patterns['rfc3164'] .= $base_patterns['rfc3164']['date_pattern'] . "\ " .
+						$base_patterns['rfc3164']['host_pattern'] . "\ " .
 						$base_patterns['rfc3164']['process_pattern'] . "\ +" .
 						"\(.*?\)\,\ *" .
 						"\(.*?\)\,\ *" .
@@ -983,7 +983,7 @@ function parse_vpn_login_log_line($line) {
 		return $flent;
 	} else {
 		if (g_get('debug')) {
-			log_error(sprintf(gettext("There was a error parsing log entry: %s. Please report to mailing list or forum."), $line));
+			logger(LOG_DEBUG, localize_text("There was a error parsing log entry: %s.", $line));
 		}
 		return "";
 	}
@@ -1006,7 +1006,7 @@ function parse_vpn_service_log_line($line) {
 		return $flent;
 	} else {
 		if (g_get('debug')) {
-			log_error(sprintf(gettext("There was a error parsing log entry: %s. Please report to mailing list or forum."), $line));
+			logger(LOG_DEBUG, localize_text("There was a error parsing log entry: %s.", $line));
 		}
 		return "";
 	}
@@ -1044,7 +1044,7 @@ function parse_unknown_log_line($line) {
 		return $flent;
 	} else {
 		if (g_get('debug')) {
-			log_error(sprintf(gettext("There was a error parsing log entry: %s. Please report to mailing list or forum."), $line));
+			logger(LOG_DEBUG, localize_text("There was a error parsing log entry: %s.", $line));
 		}
 		return "";
 	}
@@ -1068,7 +1068,7 @@ function parse_system_log_line($line) {
 		return $flent;
 	} else {
 		if (g_get('debug')) {
-			log_error(sprintf(gettext("There was a error parsing log entry: %s. Please report to mailing list or forum."), $line));
+			logger(LOG_DEBUG, localize_text("There was a error parsing log entry: %s.", $line));
 		}
 		return "";
 	}
@@ -1095,7 +1095,7 @@ function parse_firewall_log_line($line) {
 	list($all, $flent['time'], $host, $rule) = $log_split;
 	$flent['time'] = str_replace('T', ' ', $flent['time']);
 
-	$rule_data = array_filter(explode(",", $rule));
+	$rule_data = explode(",", $rule);
 	$field = 0;
 
 	$flent['rulenum'] = $rule_data[$field++];
@@ -1110,6 +1110,11 @@ function parse_firewall_log_line($line) {
 	$flent['version'] = $rule_data[$field++];
 
 	if ($flent['version'] == '4' || $flent['version'] == '6') {
+		// Handle short (truncated-ip/truncated-ip6) errors.
+		if (str_starts_with($rule_data[$field], 'error=')) {
+			// Ignore the value.
+			$field++;
+		}
 		if ($flent['version'] == '4') {
 			$flent['tos'] = $rule_data[$field++];
 			$flent['ecn'] = $rule_data[$field++];
@@ -1217,7 +1222,7 @@ function parse_firewall_log_line($line) {
 		}
 	} else {
 		if (g_get('debug')) {
-			log_error(sprintf(gettext("There was a error parsing rule number: %s. Please report to mailing list or forum."), $flent['rulenum']));
+			logger(LOG_DEBUG, localize_text("There was a error parsing rule number: %s.", $flent['rulenum']));
 		}
 		return "";
 	}
@@ -1227,7 +1232,7 @@ function parse_firewall_log_line($line) {
 		return $flent;
 	} else {
 		if (g_get('debug')) {
-			log_error(sprintf(gettext("There was a error parsing rule: %s. Please report to mailing list or forum."), $line));
+			logger(LOG_DEBUG, localize_text("There was a error parsing rule: %s.", $line));
 		}
 		return "";
 	}

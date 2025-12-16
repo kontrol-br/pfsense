@@ -186,9 +186,6 @@ function restore_backup(string|array $backup) {
 		restore_xmldatafile($bk, $conf);
 		$data = clear_tagdata($bk, $data);
 	}
-	if (!safe_write_file($file, $data)) {
-		return false;
-	}
 
 	$lockkey = lock('config', LOCK_EX);
 	if (!isset($lockkey)) {
@@ -250,7 +247,7 @@ function restore_xmldatafile($type='voucher', $conf = false) {
 			safe_mkdir($dirname);
 		}
 		if (file_put_contents($xmldata_file, gzinflate(base64_decode($file['data']))) === false) {
-			log_error(sprintf(gettext("Cannot write %s"), $xmldata_file));
+			logger(LOG_CRIT, localize_text("Cannot write %s", $xmldata_file), LOG_PREFIX_CONFIG);
 			continue;
 		}
 	}
@@ -270,14 +267,14 @@ function restore_rrddata($conf = false) {
 			$rrd_file = "{$g['vardb_path']}/rrd/" . basename($rrd['filename']);
 			$xml_file = preg_replace('/\.rrd$/', ".xml", $rrd_file);
 			if (file_put_contents($xml_file, gzinflate(base64_decode($rrd['xmldata']))) === false) {
-				log_error(sprintf(gettext("Cannot write %s"), $xml_file));
+				logger(LOG_CRIT, localize_text("Cannot write %s", $xml_file), LOG_PREFIX_CONFIG);
 				continue;
 			}
 			$output = array();
 			$status = null;
 			exec("{$rrdtool} restore -f " . escapeshellarg($xml_file) . ' ' . escapeshellarg($rrd_file), $output, $status);
 			if ($status) {
-				log_error("{$rrdtool} restore -f '{$xml_file}' '{$rrd_file}' failed returning {$status}.");
+				logger(LOG_CRIT, localize_text("%s failed returning %s.", "{$rrdtool} restore -f '{$xml_file}' '{$rrd_file}'", strval($status)), LOG_PREFIX_CONFIG);
 				continue;
 			}
 			unlink($xml_file);
@@ -285,7 +282,7 @@ function restore_rrddata($conf = false) {
 			$rrd_file = "{$g['vardb_path']}/rrd/" . basename($rrd['filename']);
 			$rrd_fd = fopen($rrd_file, "w");
 			if (!$rrd_fd) {
-				log_error(sprintf(gettext("Cannot write %s"), $rrd_file));
+				logger(LOG_CRIT, localize_text("Cannot write %s", $rrd_file), LOG_PREFIX_CONFIG);
 				continue;
 			}
 			$data = base64_decode($rrd['data']);
@@ -294,18 +291,18 @@ function restore_rrddata($conf = false) {
 			if ($dcomp) {
 				/* If the decompression worked, write the decompressed data */
 				if (fwrite($rrd_fd, $dcomp) === false) {
-					log_error(sprintf(gettext("fwrite %s failed"), $rrd_file));
+					logger(LOG_CRIT, localize_text("%s failed", "fwrite {$rrd_file}"), LOG_PREFIX_CONFIG);
 					continue;
 				}
 			} else {
 				/* If the decompression failed, it wasn't compressed, so write raw data */
 				if (fwrite($rrd_fd, $data) === false) {
-					log_error(sprintf(gettext("fwrite %s failed"), $rrd_file));
+					logger(LOG_CRIT, localize_text("%s failed", "fwrite {$rrd_file}"), LOG_PREFIX_CONFIG);
 					continue;
 				}
 			}
 			if (fclose($rrd_fd) === false) {
-				log_error(sprintf(gettext("fclose %s failed"), $rrd_file));
+				logger(LOG_CRIT, localize_text("%s failed", "fclose {$rrd_file}"), LOG_PREFIX_CONFIG);
 				continue;
 			}
 		}
@@ -328,7 +325,7 @@ function restore_sshdata($conf = false) {
 			umask(0177);
 		}
 		if (file_put_contents($keypath, gzinflate(base64_decode($sshkey['xmldata']))) === false) {
-			log_error(sprintf(gettext("Cannot write %s"), $sshkey['filename']));
+			logger(LOG_CRIT, localize_text("Cannot write %s", $sshkey['filename']), LOG_PREFIX_CONFIG);
 			continue;
 		}
 	}
@@ -403,7 +400,7 @@ function conf_mount_ro() {
 function convert_config() {
 	global $g;
 	$now = date("H:i:s");
-	log_error(sprintf(gettext("Start Configuration upgrade at %s, set execution timeout to 15 minutes"), $now));
+	logger(LOG_INFO, localize_text("Start Configuration upgrade at %s, set execution timeout to 15 minutes", $now), LOG_PREFIX_CONFIG);
 
 	/* special case upgrades */
 	/* fix every minute crontab bogons entry */
@@ -415,7 +412,7 @@ function convert_config() {
 				if ($cron_config['item'][$x]['hour'] == "*") {
 					$cron_config['item'][$x]['hour'] = "3";
 					write_config(gettext("Updated bogon update frequency to 3am"));
-					log_error(gettext("Updated bogon update frequency to 3am"));
+					logger(LOG_INFO, localize_text("Updated bogon update frequency to 3am"), LOG_PREFIX_CONFIG);
 				}
 			}
 		}
@@ -465,7 +462,7 @@ function convert_config() {
 
 	if ($prev_version != config_get_path('version')) {
 		$now = date("H:i:s");
-		log_error(sprintf(gettext("Ended Configuration upgrade at %s"), $now));
+		logger(LOG_INFO, localize_text("Ended Configuration upgrade at %s", $now), LOG_PREFIX_CONFIG);
 
 		write_config(sprintf(gettext('Upgraded config version level from %1$s to %2$s'), $prev_version, config_get_path('version')));
 	}
@@ -556,6 +553,10 @@ function safe_write_file($file, $content, $force_binary = false) {
 function write_config($desc="Unknown", $backup = true, $write_config_only = false) {
 	global $g;
 
+	if (!is_string($desc) || (strlen(trim($desc)) < 1)) {
+		$desc="Unknown";
+	}
+
 	// Certain strings may be embedded in the $desc (reason) parameter to trigger certain behavior.
 	// If detected, those strings are removed and a variable set.
 	$doacb = true;
@@ -590,7 +591,7 @@ function write_config($desc="Unknown", $backup = true, $write_config_only = fals
 			$user = getUserEntry($_SESSION['Username']);
 			$user = $user['item'];
 			if (is_array($user) && userHasPrivilege($user, "user-config-readonly")) {
-				syslog(LOG_AUTHPRIV, sprintf(gettext("Save config permission denied by the 'User - Config: Deny Config Write' permission for user '%s'."), get_config_user()));
+				logger(LOG_EMERG, localize_text("Save config permission denied by the 'User - Config: Deny Config Write' permission for user '%s'.", get_config_user()), LOG_PREFIX_CONFIG, LOG_AUTHPRIV);
 				phpsession_end(true);
 				return false;
 			}
@@ -628,7 +629,7 @@ function write_config($desc="Unknown", $backup = true, $write_config_only = fals
 	}
 
 	if (config_get_path('syslog/logconfigchanges') != "disabled") {
-		log_error(gettext('Configuration Change') . ': ' . config_get_path('revision/description'));
+		logger(LOG_NOTICE, localize_text('Configuration Change: %s', config_get_path('revision/description')), LOG_PREFIX_CONFIG);
 	}
 
 	cleanup_backupcache(true);
@@ -680,8 +681,12 @@ function reset_factory_defaults($lock = false, $reboot_required = true) {
 	global $g;
 
 	/* Remove all additional packages */
-	mwexec("/bin/sh /usr/local/sbin/{$g['product_name']}-upgrade " .
-	    "-r ALL_PACKAGES -f");
+	foreach (get_pkg_info('all', true, true) as $pkg) {
+		if (is_system_default_package($pkg['name'])) {
+			continue;
+		}
+		mwexec("/bin/sh /usr/local/sbin/{$g['product_name']}-upgrade -r {$pkg['name']} -f");
+	}
 
 	/*
 	   Let write_config know that we are awaiting reload of the current config
@@ -773,7 +778,7 @@ function config_install($conffile) {
 	if (is_platform_booting()) {
 		echo gettext("Installing configuration...") . "\n";
 	} else {
-		log_error(gettext("Installing configuration ...."));
+		logger(LOG_INFO, localize_text("Installing configuration ...."), LOG_PREFIX_CONFIG);
 	}
 
 	$lockkey = lock('config', LOCK_EX);
@@ -885,12 +890,12 @@ function cleanup_backupcache($lock = false) {
 			try {
 				$newxml = parse_xml_config($backup, array(g_get('xml_rootobj'), 'pfsense'));
 			} catch (Exception $exc) {
-				log_error(sprintf(gettext("The backup cache file %s is corrupted. Parser error message: %s"), $backup, $exc->getMessage()));
+				logger(LOG_ERR, localize_text("The backup cache file %s is corrupted. Parser error message: %s", $backup, $exc->getMessage()), LOG_PREFIX_CONFIG);
 				$newxml = "-1";
 			}
 
 			if ($newxml == "-1") {
-				log_error(sprintf(gettext("The backup cache file %s is corrupted. Unlinking."), $backup));
+				logger(LOG_ERR, localize_text("The backup cache file %s is corrupted. Unlinking.", $backup), LOG_PREFIX_CONFIG);
 				unlink($backup);
 				continue;
 			}
@@ -1082,8 +1087,8 @@ function pfSense_clear_globals() {
 			    (config_path_enabled('system','developerspew') &&
 			    ($errortype = "warning"))) {
 				print('<pre style="white-space: pre-wrap;">' . htmlentities($errorstr) . '</pre>');
-				log_error($errorstr);
-				file_notice("php{$errortype}", $errorstr, 'PHP {$errortype}s');
+				logger(LOG_ERR, $errorstr);
+				file_notice("php{$errortype}", $errorstr, "PHP {$errortype}s");
 			}
 		} else {
 			print(str_replace(',', "\n", $errorstr));
@@ -1128,7 +1133,7 @@ function config_init_path(string $path) {
 		if (isset($backtrace[0]) && isset($backtrace[0]['file'])) {
 			$error_text .= ' ' . gettext('at') . " {$backtrace[0]['file']}:{$backtrace[0]['line']}";
 		}
-		log_error($error_text);
+		logger(LOG_ERR, $error_text, LOG_PREFIX_CONFIG);
 		return false;
 	}
 	global $config;
@@ -1152,7 +1157,7 @@ function config_get_path(string $path, $default = null) {
 		if (isset($backtrace[0]) && isset($backtrace[0]['file'])) {
 			$error_text .= ' ' . gettext('at') . " {$backtrace[0]['file']}:{$backtrace[0]['line']}";
 		}
-		log_error($error_text);
+		logger(LOG_ERR, $error_text, LOG_PREFIX_CONFIG);
 		return $default;
 	}
 	global $config;
@@ -1178,7 +1183,7 @@ function config_set_path(string $path, $value, $default = null) {
 		if (isset($backtrace[0]) && isset($backtrace[0]['file'])) {
 			$error_text .= ' ' . gettext('at') . " {$backtrace[0]['file']}:{$backtrace[0]['line']}";
 		}
-		log_error($error_text);
+		logger(LOG_ERR, $error_text, LOG_PREFIX_CONFIG);
 		return $default;
 	}
 	global $config;
@@ -1221,7 +1226,7 @@ function config_path_enabled(string $path, $enable_key = "enable", $default = fa
 		if (isset($backtrace[0]) && isset($backtrace[0]['file'])) {
 			$error_text .= ' ' . gettext('at') . " {$backtrace[0]['file']}:{$backtrace[0]['line']}";
 		}
-		log_error($error_text);
+		logger(LOG_ERR, $error_text, LOG_PREFIX_CONFIG);
 		return $default;
 	}
 	global $config;
@@ -1244,7 +1249,7 @@ function config_del_path(string $path, $default = null) {
 		if (isset($backtrace[0]) && isset($backtrace[0]['file'])) {
 			$error_text .= ' ' . gettext('at') . " {$backtrace[0]['file']}:{$backtrace[0]['line']}";
 		}
-		log_error($error_text);
+		logger(LOG_ERR, $error_text, LOG_PREFIX_CONFIG);
 		return $default;
 	}
 	global $config;
@@ -1349,17 +1354,17 @@ function config_read_file(bool $use_backup = false, bool $use_cache = true) {
 	if ($config_parsed || !$use_backup) {
 		if (!$config_parsed) {
 			$log_message = gettext("A valid config file could not be found.");
-			log_error($log_message);
+			logger(LOG_CRIT, $log_message, LOG_PREFIX_CONFIG);
 			file_notice("config.xml", $log_message, "pfSenseConfigurator", "", 1, true);
 		}
 		return $config_parsed;
 	}
 
-	log_error(gettext("A valid config file backup could not be found."));
+	logger(LOG_CRIT, localize_text("A valid config file backup could not be found."), LOG_PREFIX_CONFIG);
 	if (file_exists(g_get('conf_path') . '/config.xml')) {
 		// adapted from write_config()
 		copy((g_get('conf_path') . '/config.xml'), (g_get('conf_path') . '/config.xml.bad'));
-		log_error(gettext("The failed configuration file has been saved to ") . (g_get('conf_path') . '/config.xml.bad'));
+		logger(LOG_INFO, localize_text("The failed configuration file has been saved to ", g_get('conf_path') . '/config.xml.bad'), LOG_PREFIX_CONFIG);
 	}
 
 	if (is_platform_booting()) {
@@ -1378,7 +1383,7 @@ function config_read_file(bool $use_backup = false, bool $use_cache = true) {
 	$last_backup = discover_last_backup();
 	if (!is_array($last_backup)) {
 		$log_message = gettext("A valid config file backup could not be found.");
-		log_error($log_message);
+		logger(LOG_CRIT, $log_message, LOG_PREFIX_CONFIG);
 
 		// adapted from parse_config() - alternatively it could return false
 		die($log_message);
@@ -1392,14 +1397,14 @@ function config_read_file(bool $use_backup = false, bool $use_cache = true) {
 			    $last_backup['path'], (g_get('cf_conf_path') . '/config.xml')
 			);
 			$log_message .= ' ' . gettext('Currently running PHP scripts may encounter errors.');
-			log_error($log_message);
+			logger(LOG_WARNING, $log_message, LOG_PREFIX_CONFIG);
 
 			// adapted from parse_config()
 			file_notice("config.xml", $log_message, "pfSenseConfigurator", "", 1, true);
 		} else {
 			$log_message = gettext("A valid config file could not be recovered.");
 			$log_message .= ' ' . gettext('Currently running PHP scripts may encounter errors.');
-			log_error($log_message);
+			logger(LOG_CRIT, $log_message, LOG_PREFIX_CONFIG);
 
 			// adapted from parse_config()
 			die($log_message);

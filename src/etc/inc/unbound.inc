@@ -210,12 +210,22 @@ function unbound_generate_config_text($unboundcfg = NULL, $cfgsubdir = "") {
 
 	// Setup DNS64 support
 	if (array_path_enabled($unboundcfg, 'dns64')) {
-		$module_config .= 'dns64 ';
-		$dns64_conf = 'dns64-prefix: ';
-		if (isset($unboundcfg['dns64']['prefix']) && validate_nat64_prefix($unboundcfg['dns64']['prefix'])) {
-			$dns64_conf .= $unboundcfg['dns64']['prefix'];
+		if (config_path_enabled('system', 'allow_nat64_prefix_override')) {
+			$module_config .= 'dns64 ';
+			$dns64_conf = 'dns64-prefix: ';
+			if (validate_nat64_prefix(array_get_path($unboundcfg, 'dns64/prefix'))) {
+				$dns64_conf .= $unboundcfg['dns64']['prefix'];
+			} else {
+				$dns64_conf .= NAT64_WELLKNOWN_PREFIX_CIDR;
+			}
 		} else {
-			$dns64_conf .= NAT64_WELLKNOWN_PREFIX_CIDR;
+			global $reserved_table_names;
+			$module_config .= 'respip dns64 ';
+			$dns64_conf = ['dns64-prefix: ' . NAT64_WELLKNOWN_PREFIX_CIDR];
+			foreach (explode(' ', $reserved_table_names['_nat64reserved_']['address']) as $reserved_na64_address) {
+				$dns64_conf[] = "response-ip: \"{$reserved_na64_address}\" redirect";
+			}
+			$dns64_conf = implode(PHP_EOL, $dns64_conf);
 		}
 	}
 
@@ -674,7 +684,7 @@ function do_as_unbound_user($cmd, $param1 = "") {
 			if (file_exists($root_key_file)) {
 				$rootkeycheck = mwexec("/usr/bin/grep 'autotrust trust anchor file' {$root_key_file}", true);
 				if ($rootkeycheck != "0") {
-					log_error("Unbound {$root_key_file} file is corrupt, removing and recreating.");
+					logger(LOG_WARNING, localize_text("Unbound %s file is corrupt, removing and recreating.", $root_key_file), LOG_PREFIX_DNSR);
 					unlink_if_exists($root_key_file);
 				}
 			}

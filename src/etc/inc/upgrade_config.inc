@@ -4977,7 +4977,7 @@ function upgrade_160_to_161() {
 		unset($rrdrestore);
 		$_gb = exec("LANG=C /usr/bin/tar -tf {$g['cf_conf_path']}/rrd.tgz", $rrdrestore, $rrdreturn);
 		if ($rrdreturn != 0) {
-			log_error(sprintf(gettext('RRD restore failed exited with %1$s, the error is: %2$s'), $rrdreturn, $rrdrestore));
+			logger(LOG_ERR, localize_text('RRD restore failed exited with %1$s, the error is: %2$s', $rrdreturn, $rrdrestore), LOG_PREFIX_UPGRADE);
 		} else {
 			foreach ($rrdrestore as $xml_file) {
 				$rrd_file = '/' . substr($xml_file, 0, -4) . '.rrd';
@@ -4986,12 +4986,12 @@ function upgrade_160_to_161() {
 				file_put_contents("{$g['tmp_path']}/rrd_restore", $xml_file);
 				$_gb = exec("LANG=C /usr/bin/tar -xf {$g['cf_conf_path']}/rrd.tgz -C / -T {$g['tmp_path']}/rrd_restore");
 				if (!file_exists("/{$xml_file}")) {
-					log_error(sprintf(gettext("Could not extract %s RRD xml file from archive!"), $xml_file));
+					logger(LOG_ERR, localize_text("Could not extract %s RRD xml file from archive!", $xml_file), LOG_PREFIX_UPGRADE);
 					continue;
 				}
 				$_gb = exec("$rrdtool restore -f '/{$xml_file}' '{$rrd_file}'", $output, $status);
 				if ($status) {
-					log_error(sprintf(gettext("rrdtool restore -f '%1\$s' '%2\$s' failed returning %3\$s."), $xml_file, $rrd_file, $status));
+					logger(LOG_ERR, localize_text("%s failed returning %s", "rrdtool restore -f '{$xml_file}' '{$rrd_file}'", $status), LOG_PREFIX_UPGRADE);
 					continue;
 				}
 				unset($output);
@@ -5884,7 +5884,7 @@ function upgrade_191_to_192() {
 		}
 		file_notice("Load Balancer", $deprecation_notice);
 	} else {
-		log_error("INFO: {$deprecation_notice}");
+		logger(LOG_INFO, "INFO: {$deprecation_notice}", LOG_PREFIX_UPGRADE);
 	}
 
 	config_del_path('load_balancer');
@@ -6990,6 +6990,23 @@ function upgrade_239_to_240() {
 
 function upgrade_240_to_241() {
 	/**
+	 * The DH 1024 option has beeen removed. See:
+	 * https://redmine.pfsense.org/issues/16421
+	 */
+	$changed = false;
+	$openvpn_servers_config = config_get_path('openvpn/openvpn-server', []);
+	foreach ($openvpn_servers_config as &$server_config) {
+		if (array_get_path($server_config, 'dh_length', 'none') == '1024') {
+			$server_config['dh_length'] = '2048';
+			$changed = true;
+		}
+	}
+	if ($changed) {
+		config_set_path('openvpn/openvpn-server', $openvpn_servers_config);
+		file_notice('config.xml', gettext('The OpenVPN Server option "DH Parameter Length" has been updated to a minimum of 2048.'));
+	}
+
+	/**
 	 * Special characters in PPP passwords are now handled correctly.
 	 * Trim spaces that were previously ignored. See:
 	 * https://redmine.pfsense.org/issues/16128
@@ -7005,7 +7022,6 @@ function upgrade_240_to_241() {
 	 * Configuration related to NAT64 has changed. See:
 	 * https://redmine.pfsense.org/issues/16241
 	 */
-
 	$override_nat64_prefix = false;
 
 	// Migrate the DNS64 configuration and check for a custom prefix.
@@ -7142,14 +7158,45 @@ function upgrade_240_to_241() {
 	if (!empty($changes)) {
 		set_filter_rules_list($rules_list);
 		foreach ($changes as $message) {
-			log_error($message);
+			logger(LOG_WARNING, $message, LOG_PREFIX_UPGRADE);
 		}
 		file_notice('config.xml', gettext("NAT64 firewall rules were changed, see system logs for details."));
 	}
 
-
 	if ($override_nat64_prefix) {
 		config_set_path('system/allow_nat64_prefix_override', true);
+	}
+
+	/**
+	 * "match quick" rules did not work correctly. Remove "quick" from
+	 * existing "match" rules to retain the expected behavior. See:
+	 * https://redmine.pfsense.org/issues/16475
+	 */
+	$changes = [];
+	$rules_list = get_filter_rules_list();
+	foreach ($rules_list as $ridx => &$rule) {
+		if (!isset($rule['quick']) || ($rule['type'] != 'match')) {
+			continue;
+		}
+
+		if (isset($rule['descr']) && is_string($rule['descr']) && (strlen($rule['descr']) > 0)) {
+			$changes_message = gettext(sprintf(" (rule %s)", "\"{$rule['descr']})\""));
+		} elseif (isset($rule['tracker']) && (strlen(strval($rule['tracker'])) > 0)) {
+			$changes_message = gettext(sprintf(" (rule %s)", strval($rule['tracker'])));
+		} else {
+			$changes_message = gettext(sprintf(" (rule ID %s)", $ridx));
+		}
+
+		unset($rule['quick']);
+		$changes[] = gettext('Removed "quick" option from match rule') . $changes_message;
+	}
+	unset($rule);
+	if (!empty($changes)) {
+		set_filter_rules_list($rules_list);
+		foreach ($changes as $message) {
+			logger(LOG_WARNING, $message, LOG_PREFIX_UPGRADE);
+		}
+		file_notice('config.xml', gettext('Firewall "match quick" rules were changed, see system logs for details.'));
 	}
 }
 
@@ -7162,6 +7209,7 @@ function upgrade_240_to_241() {
  *     version
  */
 function additional_config_upgrade() {
+	fix_config_artifacts();
 }
 
 ?>
