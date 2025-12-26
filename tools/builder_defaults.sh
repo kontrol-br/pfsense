@@ -5,7 +5,7 @@
 # part of pfSense (https://www.pfsense.org)
 # Copyright (c) 2004-2013 BSD Perimeter
 # Copyright (c) 2013-2016 Electric Sheep Fencing
-# Copyright (c) 2014-2025 Rubicon Communications, LLC (Netgate)
+# Copyright (c) 2014-2023 Rubicon Communications, LLC (Netgate)
 # All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -55,9 +55,13 @@ fi
 
 # Define pfSense versions
 PKG_REPO_BRANCH_DEVEL="devel"
-#PKG_REPO_BRANCH_NEXT="v2_7_0"
-PKG_REPO_BRANCH_RELEASE="v2_6_0"
-PKG_REPO_BRANCH_PREVIOUS="v2_5_2"
+PKG_REPO_BRANCH_NEXT="v2_8_2"
+PKG_REPO_BRANCH_RELEASE="v2_8_1"
+PKG_REPO_BRANCH_PREVIOUS="v2_7_2"
+export PKG_REPO_BRANCH_DEVEL="devel"
+export PKG_REPO_BRANCH_NEXT="v2_8_2"
+export PKG_REPO_BRANCH_RELEASE="v2_8_1"
+export PKG_REPO_BRANCH_PREVIOUS="v2_7_2"
 
 # Make sure pkg will not be interactive
 export ASSUME_ALWAYS_YES=true
@@ -73,13 +77,13 @@ if [ ! -d ${SCRATCHDIR} ]; then
 fi
 
 # Product details
-export PRODUCT_NAME=${PRODUCT_NAME:-"nonSense"}
+export PRODUCT_NAME=${PRODUCT_NAME:-"Kontrol"}
 export PRODUCT_NAME_SUFFIX=${PRODUCT_NAME_SUFFIX:-"-CE"}
 export REPO_BRANCH_PREFIX=${REPO_BRANCH_PREFIX:-""}
 export REPO_PATH_PREFIX=$(echo "${REPO_BRANCH_PREFIX}" | sed -e 's,-,_,g')
 export PRODUCT_URL=${PRODUCT_URL:-""}
 export PRODUCT_SRC=${PRODUCT_SRC:-"${BUILDER_ROOT}/src"}
-export PRODUCT_EMAIL=${PRODUCT_EMAIL:-"coreteam@pfsense.org"}
+export PRODUCT_EMAIL=${PRODUCT_EMAIL:-"contato@kontrol.com.br"}
 export XML_ROOTOBJ=${XML_ROOTOBJ:-$(echo "${PRODUCT_NAME}" | tr '[[:upper:]]' '[[:lower:]]')}
 
 if [ "${PRODUCT_NAME}" = "pfSense" -a "${BUILD_AUTHORIZED_BY_NETGATE}" != "yes" ]; then
@@ -114,8 +118,8 @@ POUDRIERE_BRANCH=$(echo "${GIT_REPO_BRANCH_OR_TAG}" | sed 's,RELENG_,v,; s,\.,_,
 GIT_REPO_BASE=$(git -C ${BUILDER_ROOT} config --get remote.$(git -C ${BUILDER_ROOT} remote).url | sed -e 's,/[^/]*$,,')
 
 # This is used for using svn for retrieving src
-export FREEBSD_REPO_BASE=${FREEBSD_REPO_BASE:-"${GIT_REPO_BASE}/freebsd-src.git"}
-export FREEBSD_BRANCH=${FREEBSD_BRANCH:-"${REPO_BRANCH_PREFIX}devel-12"}
+export FREEBSD_REPO_BASE=${FREEBSD_REPO_BASE:-"${GIT_REPO_BASE}/Freebsd-src"}
+export FREEBSD_BRANCH=${FREEBSD_BRANCH:-"${REPO_BRANCH_PREFIX}RELENG_2_8_1"}
 export FREEBSD_SRC_DIR=${FREEBSD_SRC_DIR:-"${SCRATCHDIR}/FreeBSD-src"}
 
 export BUILD_KERNELS=${BUILD_KERNELS:-"${PRODUCT_NAME}"}
@@ -146,7 +150,7 @@ export MAKEOBJDIRPREFIX=${MAKEOBJDIRPREFIX:-"${SCRATCHDIR}/obj"}
 
 if [ -z "${MODULES_OVERRIDE}" ]; then
 	export MODULES_OVERRIDE_base="cc/cc_cdg cc/cc_chd cc/cc_cubic cc/cc_dctcp cc/cc_hd cc/cc_htcp cc/cc_vegas cryptodev dummynet fdescfs hwpmc i2c if_stf ipdivert ipfw ipfw_nat64 opensolaris usb/cdce usb/ipheth usb/ure usb/urndis zfs"
-	export MODULES_OVERRIDE_amd64="${MODULES_OVERRIDE_base} aesni amdsmn amdtemp blake2 coretemp cpuctl cxgbe/tom drm2 ipmi ix ixv ndis nmdm qlnx sfxge vmm"
+	export MODULES_OVERRIDE_amd64="${MODULES_OVERRIDE_base}  amdsmn amdtemp  coretemp cpuctl cxgbe/tom  if_wg ipmi ix ixv   nmdm qlnx sfxge vmm"
 	export MODULES_OVERRIDE="${MODULES_OVERRIDE_amd64}"
 fi
 
@@ -226,7 +230,7 @@ if [ -z "${REPO_BRANCH_PREFIX}" ]; then
 else
 	export POUDRIERE_PORTS_GIT_URL=${POUDRIERE_PORTS_GIT_URL:-"${GIT_REPO_BASE}/${REPO_BRANCH_PREFIX}ports.git"}
 fi
-export POUDRIERE_PORTS_GIT_BRANCH=${POUDRIERE_PORTS_GIT_BRANCH:-"${REPO_BRANCH_PREFIX}devel"}
+export POUDRIERE_PORTS_GIT_BRANCH=${POUDRIERE_PORTS_GIT_BRANCH:-"${REPO_BRANCH_PREFIX}RELENG_2_8_1"}
 
 # Use vX_Y instead of RELENG_X_Y for poudriere to make it shorter
 POUDRIERE_PORTS_BRANCH=$(echo "${POUDRIERE_PORTS_GIT_BRANCH}" | sed 's,RELENG_,v,; s,-,_,g')
@@ -320,7 +324,7 @@ export CORE_PKG_REAL_PATH="${CORE_PKG_PATH}/.real_${DATESTRING}"
 export CORE_PKG_ALL_PATH="${CORE_PKG_PATH}/All"
 
 export PKG_REPO_BASE=${PKG_REPO_BASE:-"${BUILDER_TOOLS}/templates/pkg_repos"}
-export PFSENSE_DEFAULT_REPO="${PRODUCT_NAME}-repo-devel"
+export PFSENSE_DEFAULT_REPO="${PRODUCT_NAME}-repo"
 export PKG_REPO_DEFAULT=${PKG_REPO_DEFAULT:-"${PKG_REPO_BASE}/${PFSENSE_DEFAULT_REPO}.conf"}
 export PFSENSE_BUILD_REPO="${PFSENSE_DEFAULT_REPO}"
 export PKG_REPO_BUILD=${PKG_REPO_BUILD:-"${PKG_REPO_BASE}/${PFSENSE_BUILD_REPO}.conf"}
