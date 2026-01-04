@@ -1,7 +1,7 @@
 benchmarks/%%PRODUCT_NAME%%-pkg-iperf
-databases/php84-mysqli
-databases/php84-pdo_mysql
-databases/php84-pgsql
+databases/php83-mysqli
+databases/php83-pdo_mysql
+databases/php83-pgsql
 devel/aws-sdk-php
 devel/gdb
 devel/git
@@ -118,6 +118,6 @@ www/pound
 converters/base64
 www/sarg
 www/Kontrol-pkg-sarg
-www/e2guardian
-www/Kontrol-pkg-E2guardian5
+www/e2guardian54
+www/Kontrol-pkg-E2guardian54
 www/Kontrol-pkg-KontrolSquid
