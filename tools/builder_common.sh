@@ -74,36 +74,32 @@ core_pkg_create_repo() {
 	ln -sf .latest/packagesite.txz ${CORE_PKG_PATH}/packagesite.txz
 }
 
-# Create core pkg (base, kernel)
-core_pkg_create() {
-	local _template="${1}"
-	local _flavor="${2}"
-	local _version="${3}"
-	local _root="${4}"
-	local _findroot="${5}"
-	local _filter="${6}"
+	# Create core pkg (base, kernel)
+	core_pkg_create() {
+		local _template="${1}"
+		local _flavor="${2}"
+		local _version="${3}"
+		local _root="${4}"
+		local _findroot="${5}"
+		local _filter="${6}"
 
-	local _template_path=${BUILDER_TOOLS}/templates/core_pkg/${_template}
+		local _template_path=${BUILDER_TOOLS}/templates/core_pkg/${_template}
 
-	# Use default pkg repo to obtain ABI and ALTABI
-	local _abi=$(sed -e "s/%%ARCH%%/${TARGET_ARCH}/g" \
-	    ${PKG_REPO_DEFAULT%%.conf}.abi)
-	local _altabi_arch=$(get_altabi_arch ${TARGET_ARCH})
-	local _altabi=$(sed -e "s/%%ARCH%%/${_altabi_arch}/g" \
-	    ${PKG_REPO_DEFAULT%%.conf}.altabi)
+		# Use default pkg repo to obtain ABI
+		local _abi=$(sed -e "s/%%ARCH%%/${TARGET_ARCH}/g" \
+		    ${PKG_REPO_DEFAULT%%.conf}.abi)
 
-	${BUILDER_SCRIPTS}/create_core_pkg.sh \
-		-t "${_template_path}" \
-		-f "${_flavor}" \
-		-v "${_version}" \
-		-r "${_root}" \
-		-s "${_findroot}" \
-		-F "${_filter}" \
-		-d "${CORE_PKG_REAL_PATH}/All" \
-		-a "${_abi}" \
-		-A "${_altabi}" \
-		|| print_error_pfS
-}
+		${BUILDER_SCRIPTS}/create_core_pkg.sh \
+			-t "${_template_path}" \
+			-f "${_flavor}" \
+			-v "${_version}" \
+			-r "${_root}" \
+			-s "${_findroot}" \
+			-F "${_filter}" \
+			-d "${CORE_PKG_REAL_PATH}/All" \
+			-a "${_abi}" \
+			|| print_error_pfS
+	}
 
 # This routine will output that something went wrong
 print_error_pfS() {
@@ -984,21 +980,6 @@ create_memstick_adi_image() {
 	echo ">>> MEMSTICKADI created: $(LC_ALL=C date)" | tee -a ${LOGFILE}
 }
 
-get_altabi_arch() {
-	local _target_arch="$1"
-
-	if [ "${_target_arch}" = "amd64" ]; then
-		echo "x86:64"
-	elif [ "${_target_arch}" = "i386" ]; then
-		echo "x86:32"
-	elif [ "${_target_arch}" = "armv7" ]; then
-		echo "32:el:eabi:softfp"
-	else
-		echo ">>> ERROR: Invalid arch"
-		print_error_pfS
-	fi
-}
-
 # Create pkg conf on desired place with desired arch/branch
 setup_pkg_repo() {
 	if [ -z "${4}" ]; then
@@ -1048,19 +1029,14 @@ setup_pkg_repo() {
 		${_template} \
 		> ${_target}
 
-	local ALTABI_ARCH=$(get_altabi_arch ${_target_arch})
+		ABI=$(cat ${_template%%.conf}.abi 2>/dev/null \
+		    | sed -e "s/%%ARCH%%/${_target_arch}/g")
 
-	ABI=$(cat ${_template%%.conf}.abi 2>/dev/null \
-	    | sed -e "s/%%ARCH%%/${_target_arch}/g")
-	ALTABI=$(cat ${_template%%.conf}.altabi 2>/dev/null \
-	    | sed -e "s/%%ARCH%%/${ALTABI_ARCH}/g")
-
-	if [ -n "${_pkg_conf}" -a -n "${ABI}" -a -n "${ALTABI}" ]; then
-		mkdir -p $(dirname ${_pkg_conf})
-		echo "ABI=${ABI}" > ${_pkg_conf}
-		echo "ALTABI=${ALTABI}" >> ${_pkg_conf}
-	fi
-}
+		if [ -n "${_pkg_conf}" -a -n "${ABI}" ]; then
+			mkdir -p $(dirname ${_pkg_conf})
+			echo "ABI=${ABI}" > ${_pkg_conf}
+		fi
+	}
 
 depend_check() {
 	for _pkg in ${BUILDER_PKG_DEPENDENCIES}; do
