@@ -44,7 +44,6 @@ Options:
 	-F filter    -- filter pattern to exclude files from plist
 	-d destdir   -- Destination directory to create package
 	-a ABI       -- Package ABI
-	-A ALTABI    -- Package ALTABI (aka arch)
 	-h           -- Show this help and exit
 
 Environment:
@@ -55,7 +54,7 @@ END
 	exit 1
 }
 
-while getopts s:t:f:v:r:F:d:ha:A: opt; do
+while getopts s:t:f:v:r:F:d:ha: opt; do
 	case "$opt" in
 		t)
 			template=$OPTARG
@@ -80,9 +79,6 @@ while getopts s:t:f:v:r:F:d:ha:A: opt; do
 			;;
 		a)
 			ABI=$OPTARG
-			;;
-		A)
-			ALTABI=$OPTARG
 			;;
 		*)
 			usage
@@ -187,11 +183,9 @@ if [ -d "${template_licensedir}" ]; then
 	done
 fi
 
-# Force desired ABI and arch
+# Force desired ABI
 [ -n "${ABI}" ] \
     && echo "abi: ${ABI}" >> ${manifest}
-[ -n "${ALTABI}" ] \
-    && echo "arch: ${ALTABI}" >> ${manifest}
 
 run "Creating core package ${template_name}" \
 	"pkg create -o ${destdir} -p ${plist} -r ${root} -m ${metadir}"
