@@ -36,6 +36,21 @@ lc() {
 	echo "${1}" | tr '[[:upper:]]' '[[:lower:]]'
 }
 
+get_freebsd_osversion() {
+	local _osversion=""
+
+	if [ -n "${FREEBSD_SRC_DIR}" -a -f "${FREEBSD_SRC_DIR}/sys/sys/param.h" ]; then
+		_osversion=$(awk '/__FreeBSD_version/ {print $3; exit}' \
+		    ${FREEBSD_SRC_DIR}/sys/sys/param.h | tr -cd '0-9')
+	fi
+
+	if [ -z "${_osversion}" ]; then
+		_osversion=$(sysctl -n kern.osreldate 2>/dev/null | tr -cd '0-9')
+	fi
+
+	echo "${_osversion}"
+}
+
 git_last_commit() {
 	export CURRENT_COMMIT=$(git -C ${BUILDER_ROOT} log -1 --format='%H')
 	export CURRENT_AUTHOR=$(git -C ${BUILDER_ROOT} log -1 --format='%an')
@@ -1031,10 +1046,13 @@ setup_pkg_repo() {
 
 		ABI=$(cat ${_template%%.conf}.abi 2>/dev/null \
 		    | sed -e "s/%%ARCH%%/${_target_arch}/g")
+		OSVERSION=$(get_freebsd_osversion)
 
 		if [ -n "${_pkg_conf}" -a -n "${ABI}" ]; then
 			mkdir -p $(dirname ${_pkg_conf})
 			echo "ABI=${ABI}" > ${_pkg_conf}
+			[ -n "${OSVERSION}" ] \
+			    && echo "OSVERSION=${OSVERSION}" >> ${_pkg_conf}
 		fi
 	}
 
