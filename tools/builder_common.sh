@@ -85,8 +85,31 @@ core_pkg_create_repo() {
 	ln -sf .latest/All ${CORE_PKG_ALL_PATH}
 	#ln -sf .latest/digests.txz ${CORE_PKG_PATH}/digests.txz
 	ln -sf .latest/meta.conf ${CORE_PKG_PATH}/meta.conf
-	ln -sf .latest/meta.txz ${CORE_PKG_PATH}/meta.txz
-	ln -sf .latest/packagesite.txz ${CORE_PKG_PATH}/packagesite.txz
+
+	link_repo_metadata ${CORE_PKG_PATH} meta
+	link_repo_metadata ${CORE_PKG_PATH} packagesite
+}
+
+link_repo_metadata() {
+	local _repo_path="${1}"
+	local _name="${2}"
+	local _latest_dir="${_repo_path}/.latest"
+
+	for _ext in txz tzst pkg; do
+		if [ -f "${_latest_dir}/${_name}.${_ext}" ]; then
+			ln -sf ".latest/${_name}.${_ext}" \
+				"${_repo_path}/${_name}.${_ext}"
+		fi
+	done
+}
+
+sanitize_pkg_conf() {
+	local _root="${1}"
+	local _pkg_conf="${_root}/usr/local/etc/pkg.conf"
+
+	if [ -f "${_pkg_conf}" ]; then
+		sed -i '' -e '/^ALTABI=/d' "${_pkg_conf}"
+	fi
 }
 
 	# Create core pkg (base, kernel)
@@ -672,6 +695,7 @@ clone_to_staging_area() {
 
 	# Make sure pkg is present
 	pkg_bootstrap ${STAGE_CHROOT_DIR}
+	sanitize_pkg_conf ${STAGE_CHROOT_DIR}
 
 	# Make sure correct repo is available on tmp dir
 	mkdir -p ${STAGE_CHROOT_DIR}/tmp/pkg/pkg-repos
