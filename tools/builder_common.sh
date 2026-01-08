@@ -85,8 +85,23 @@ core_pkg_create_repo() {
 	ln -sf .latest/All ${CORE_PKG_ALL_PATH}
 	#ln -sf .latest/digests.txz ${CORE_PKG_PATH}/digests.txz
 	ln -sf .latest/meta.conf ${CORE_PKG_PATH}/meta.conf
-	ln -sf .latest/meta.txz ${CORE_PKG_PATH}/meta.txz
-	ln -sf .latest/packagesite.txz ${CORE_PKG_PATH}/packagesite.txz
+
+	link_repo_metadata ${CORE_PKG_PATH} meta
+	link_repo_metadata ${CORE_PKG_PATH} packagesite
+}
+
+link_repo_metadata() {
+	local _repo_path="${1}"
+	local _name="${2}"
+	local _latest_dir="${_repo_path}/.latest"
+
+	for _ext in txz tzst pkg; do
+		if [ -f "${_latest_dir}/${_name}.${_ext}" ]; then
+			ln -sf ".latest/${_name}.${_ext}" \
+				"${_repo_path}/${_name}.${_ext}"
+			return 0
+		fi
+	done
 }
 
 	# Create core pkg (base, kernel)
