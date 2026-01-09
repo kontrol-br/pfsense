@@ -999,6 +999,25 @@ get_altabi_arch() {
 	fi
 }
 
+get_osversion() {
+	local _osversion=""
+
+	if [ -n "${FREEBSD_SRC_DIR}" -a -f "${FREEBSD_SRC_DIR}/sys/sys/param.h" ]; then
+		_osversion=$(awk '/^#define[[:space:]]+__FreeBSD_version/ {print $3; exit}' \
+			${FREEBSD_SRC_DIR}/sys/sys/param.h)
+	fi
+
+	if [ -z "${_osversion}" ]; then
+		_osversion=$(sysctl -n kern.osreldate 2>/dev/null)
+	fi
+
+	if [ -z "${_osversion}" ]; then
+		_osversion=$(uname -K 2>/dev/null)
+	fi
+
+	echo "${_osversion}"
+}
+
 # Create pkg conf on desired place with desired arch/branch
 setup_pkg_repo() {
 	if [ -z "${4}" ]; then
@@ -1048,17 +1067,16 @@ setup_pkg_repo() {
 		${_template} \
 		> ${_target}
 
-	local ALTABI_ARCH=$(get_altabi_arch ${_target_arch})
-
 	ABI=$(cat ${_template%%.conf}.abi 2>/dev/null \
 	    | sed -e "s/%%ARCH%%/${_target_arch}/g")
-	ALTABI=$(cat ${_template%%.conf}.altabi 2>/dev/null \
-	    | sed -e "s/%%ARCH%%/${ALTABI_ARCH}/g")
 
-	if [ -n "${_pkg_conf}" -a -n "${ABI}" -a -n "${ALTABI}" ]; then
+	if [ -n "${_pkg_conf}" -a -n "${ABI}" ]; then
 		mkdir -p $(dirname ${_pkg_conf})
 		echo "ABI=${ABI}" > ${_pkg_conf}
-		echo "ALTABI=${ALTABI}" >> ${_pkg_conf}
+		OSVERSION=$(get_osversion)
+		if [ -n "${OSVERSION}" ]; then
+			echo "OSVERSION=${OSVERSION}" >> ${_pkg_conf}
+		fi
 	fi
 }
 
