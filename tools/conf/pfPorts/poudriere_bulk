@@ -58,7 +58,7 @@ net/hping3
 net/intel-em-kmod
 net/intel-igb-kmod
 net/kea
-net/kea-devel
+#net/kea-devel
 net/keama
 net/librdkafka
 net/mcjoin
