@@ -76,6 +76,15 @@ core_pkg_create_repo() {
 		[ -f "${CORE_PKG_REAL_PATH}/packagesite.${_ext}" ] \
 			&& ln -sf ".latest/packagesite.${_ext}" "${CORE_PKG_PATH}/packagesite.${_ext}"
 	done
+
+	local _latest_dir="${CORE_PKG_PATH}/Latest"
+	local _pkg_pkg=""
+	mkdir -p "${_latest_dir}"
+	_pkg_pkg=$(ls -t ${CORE_PKG_REAL_PATH}/All/pkg-*.pkg 2>/dev/null | head -n 1)
+	if [ -n "${_pkg_pkg}" ]; then
+		ln -sf "../.latest/All/$(basename ${_pkg_pkg})" "${_latest_dir}/pkg.pkg"
+		ln -sf "pkg.pkg" "${_latest_dir}/pkg.txz"
+	fi
 }
 
 # Create core pkg (base, kernel)
