@@ -70,8 +70,12 @@ core_pkg_create_repo() {
 	ln -sf .latest/All ${CORE_PKG_ALL_PATH}
 	#ln -sf .latest/digests.txz ${CORE_PKG_PATH}/digests.txz
 	ln -sf .latest/meta.conf ${CORE_PKG_PATH}/meta.conf
-	ln -sf .latest/meta.txz ${CORE_PKG_PATH}/meta.txz
-	ln -sf .latest/packagesite.txz ${CORE_PKG_PATH}/packagesite.txz
+	for _ext in tzst txz; do
+		[ -f "${CORE_PKG_REAL_PATH}/meta.${_ext}" ] \
+			&& ln -sf ".latest/meta.${_ext}" "${CORE_PKG_PATH}/meta.${_ext}"
+		[ -f "${CORE_PKG_REAL_PATH}/packagesite.${_ext}" ] \
+			&& ln -sf ".latest/packagesite.${_ext}" "${CORE_PKG_PATH}/packagesite.${_ext}"
+	done
 }
 
 # Create core pkg (base, kernel)
@@ -373,6 +377,7 @@ create_ova_image() {
 	# Prepare folder to be put in image
 	customize_stagearea_for_image "ova"
 	install_default_kernel ${DEFAULT_KERNEL} "no"
+	cleanup_pkg_tmp
 
 	# Fill fstab
 	echo ">>> Installing platform specific items..." | tee -a ${LOGFILE}
@@ -761,9 +766,12 @@ customize_stagearea_for_image() {
 			${BUILDER_TOOLS}/templates/custom_logos/${_image_variant}/*.css \
 			${FINAL_CHROOT_DIR}/usr/local/share/${PRODUCT_NAME}/custom_logos
 	fi
+}
 
-	# Remove temporary repo conf
-	rm -rf ${FINAL_CHROOT_DIR}/tmp/pkg
+cleanup_pkg_tmp() {
+	if [ -n "${FINAL_CHROOT_DIR}" -a -d "${FINAL_CHROOT_DIR}/tmp/pkg" ]; then
+		rm -rf ${FINAL_CHROOT_DIR}/tmp/pkg
+	fi
 }
 
 create_distribution_tarball() {
@@ -804,6 +812,7 @@ create_iso_image() {
 
 	customize_stagearea_for_image "iso" "" $_variant
 	install_default_kernel ${DEFAULT_KERNEL}
+	cleanup_pkg_tmp
 
 	BOOTCONF=${INSTALLER_CHROOT_DIR}/boot.config
 	LOADERCONF=${INSTALLER_CHROOT_DIR}/boot/loader.conf
@@ -853,6 +862,7 @@ create_memstick_image() {
 
 	customize_stagearea_for_image "memstick" "" $_variant
 	install_default_kernel ${DEFAULT_KERNEL}
+	cleanup_pkg_tmp
 
 	echo ">>> Creating memstick to ${_image_path}." 2>&1 | tee -a ${LOGFILE}
 
@@ -897,6 +907,7 @@ create_memstick_serial_image() {
 
 	customize_stagearea_for_image "memstickserial"
 	install_default_kernel ${DEFAULT_KERNEL}
+	cleanup_pkg_tmp
 
 	echo ">>> Creating serial memstick to ${MEMSTICKSERIALPATH}." 2>&1 | tee -a ${LOGFILE}
 
@@ -945,6 +956,7 @@ create_memstick_adi_image() {
 
 	customize_stagearea_for_image "memstickadi"
 	install_default_kernel ${DEFAULT_KERNEL}
+	cleanup_pkg_tmp
 
 	echo ">>> Creating serial memstick to ${MEMSTICKADIPATH}." 2>&1 | tee -a ${LOGFILE}
 
