@@ -463,7 +463,7 @@ if (!isvalidpid($gui_pidfile) && !$confirmed && !$completed &&
 					<label class="col-sm-2 control-label">
 					</label>
 					<div class="col-sm-10" id="release_info">
-						<a target="_blank" href="https://docs.netgate.com/pfsense/en/latest/releases/versions.html"><?=gettext("Release notes and version information")?></a>
+						<a target="_blank" href="https://github.com/kontrol-br/pfsense/tree/RELENG_2_8_1"><?=gettext("Release notes and version information")?></a>
 					</div>
 				</div>
 <?php
