@@ -89,12 +89,9 @@ core_pkg_create() {
 
 	local _template_path=${BUILDER_TOOLS}/templates/core_pkg/${_template}
 
-	# Use default pkg repo to obtain ABI and ALTABI
+	# Use default pkg repo to obtain ABI
 	local _abi=$(sed -e "s/%%ARCH%%/${TARGET_ARCH}/g" \
 	    ${PKG_REPO_DEFAULT%%.conf}.abi)
-	local _altabi_arch=$(get_altabi_arch ${TARGET_ARCH})
-	local _altabi=$(sed -e "s/%%ARCH%%/${_altabi_arch}/g" \
-	    ${PKG_REPO_DEFAULT%%.conf}.altabi)
 
 	${BUILDER_SCRIPTS}/create_core_pkg.sh \
 		-t "${_template_path}" \
@@ -105,7 +102,6 @@ core_pkg_create() {
 		-F "${_filter}" \
 		-d "${CORE_PKG_REAL_PATH}/All" \
 		-a "${_abi}" \
-		-A "${_altabi}" \
 		|| print_error_pfS
 }
 
@@ -661,6 +657,7 @@ clone_to_staging_area() {
 
 	# Make sure pkg is present
 	pkg_bootstrap ${STAGE_CHROOT_DIR}
+	sanitize_pkg_conf ${STAGE_CHROOT_DIR} ${TARGET_ARCH}
 
 	# Make sure correct repo is available on tmp dir
 	mkdir -p ${STAGE_CHROOT_DIR}/tmp/pkg/pkg-repos
@@ -1030,7 +1027,37 @@ get_osversion() {
 		_osversion=$(uname -K 2>/dev/null)
 	fi
 
+	if [ -z "${_osversion}" ]; then
+		_osversion=$(freebsd-version -k 2>/dev/null | cut -d '-' -f 1)
+	fi
+
 	echo "${_osversion}"
+}
+
+sanitize_pkg_conf() {
+	local _root="${1}"
+	local _target_arch="${2}"
+	local _pkg_conf="${_root}/usr/local/etc/pkg.conf"
+	local _abi=""
+	local _osversion=""
+
+	if [ ! -f "${_pkg_conf}" ]; then
+		return
+	fi
+
+	_abi=$(sed -e "s/%%ARCH%%/${_target_arch}/g" \
+	    ${PKG_REPO_DEFAULT%%.conf}.abi)
+	_osversion=$(get_osversion)
+
+	sed -i '' -e '/^ALTABI=/d' ${_pkg_conf}
+
+	if [ -n "${_abi}" ] && ! grep -q '^ABI=' ${_pkg_conf}; then
+		echo "ABI=${_abi}" >> ${_pkg_conf}
+	fi
+
+	if [ -n "${_osversion}" ] && ! grep -q '^OSVERSION=' ${_pkg_conf}; then
+		echo "OSVERSION=${_osversion}" >> ${_pkg_conf}
+	fi
 }
 
 # Create pkg conf on desired place with desired arch/branch
