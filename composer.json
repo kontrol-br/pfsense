@@ -9,8 +9,6 @@
     },
     "autoload": {
         "psr-4": {
-            "Netgate\\": "//usr/local/pfSense/include/Netgate/",
-            "pfSense\\": "//usr/local/pfSense/include/",
             "Kontrol\\": "//usr/local/Kontrol/include/",
 	    "Tools\\Rector\\": "tools/rector/src",
 	    "Tools\\Rector\\Tests\\": "tools/rector/tests"
