@@ -657,6 +657,7 @@ clone_to_staging_area() {
 
 	# Make sure pkg is present
 	pkg_bootstrap ${STAGE_CHROOT_DIR}
+	sanitize_pkg_conf ${STAGE_CHROOT_DIR} ${TARGET_ARCH}
 
 	# Make sure correct repo is available on tmp dir
 	mkdir -p ${STAGE_CHROOT_DIR}/tmp/pkg/pkg-repos
@@ -1031,6 +1032,32 @@ get_osversion() {
 	fi
 
 	echo "${_osversion}"
+}
+
+sanitize_pkg_conf() {
+	local _root="${1}"
+	local _target_arch="${2}"
+	local _pkg_conf="${_root}/usr/local/etc/pkg.conf"
+	local _abi=""
+	local _osversion=""
+
+	if [ ! -f "${_pkg_conf}" ]; then
+		return
+	fi
+
+	_abi=$(sed -e "s/%%ARCH%%/${_target_arch}/g" \
+	    ${PKG_REPO_DEFAULT%%.conf}.abi)
+	_osversion=$(get_osversion)
+
+	sed -i '' -e '/^ALTABI=/d' ${_pkg_conf}
+
+	if [ -n "${_abi}" ] && ! grep -q '^ABI=' ${_pkg_conf}; then
+		echo "ABI=${_abi}" >> ${_pkg_conf}
+	fi
+
+	if [ -n "${_osversion}" ] && ! grep -q '^OSVERSION=' ${_pkg_conf}; then
+		echo "OSVERSION=${_osversion}" >> ${_pkg_conf}
+	fi
 }
 
 # Create pkg conf on desired place with desired arch/branch
