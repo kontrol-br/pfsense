@@ -19,7 +19,7 @@ return static function (RectorConfig $rectorConfig): void {
 
     // while skipping third-pary code that isn't our concern.
     $rectorConfig->skip([
-        __DIR__ . '/src/usr/local/pfSense/include/vendor/*',
+        __DIR__ . '/src/usr/local/Kontrol/include/vendor/*',
     	__DIR__ . '/src/etc/inc/priv.defs.inc',
     ]);
 
@@ -34,7 +34,7 @@ return static function (RectorConfig $rectorConfig): void {
      * and the same name as the filename.
      *
      * See https://github.com/rectorphp/rector/blob/main/docs/create_own_rule.md
-     */ 
+     */
 
 	$rectorConfig->ruleWithConfiguration(Rules\ArrayGetExprRector::class,
 										 ['g' => 'g_get',
