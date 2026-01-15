@@ -133,7 +133,16 @@ if ($_POST) {
 			}
 			eval($pkg['custom_delete_php_command']);
 		}
-		write_config($pkg['delete_string']);
+		$write_desc = $pkg['delete_string'];
+		if (empty($write_desc)) {
+			$pkg_label = $pkg['title'] ?: $pkg['name'];
+			if (!empty($pkg_label)) {
+				$write_desc = sprintf(gettext("Package %s configuration item deleted."), $pkg_label);
+			} else {
+				$write_desc = gettext("Package configuration item deleted.");
+			}
+		}
+		write_config($write_desc);
 		// resync the configuration file code if defined.
 		if ($pkg['custom_php_resync_config_command'] != "") {
 			if ($pkg['custom_php_command_before_form'] != "") {
@@ -219,7 +228,16 @@ if ($_POST) {
 				config_set_path("{$pkg_config_path}/", $pkgarr);
 			}
 
-			write_config($pkg['addedit_string']);
+			$write_desc = $pkg['addedit_string'];
+			if (empty($write_desc)) {
+				$pkg_label = $pkg['title'] ?: $pkg['name'];
+				if (!empty($pkg_label)) {
+					$write_desc = sprintf(gettext("Package %s configuration updated."), $pkg_label);
+				} else {
+					$write_desc = gettext("Package configuration updated.");
+				}
+			}
+			write_config($write_desc);
 			// late running code
 			if ($pkg['custom_add_php_command_late'] != "") {
 				eval($pkg['custom_add_php_command_late']);
