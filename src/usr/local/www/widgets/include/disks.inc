@@ -19,7 +19,12 @@
  * limitations under the License.
  */
 
-require_once('vendor/autoload.php');
+$kontrol_autoload = '/usr/local/Kontrol/include/vendor/autoload.php';
+if (file_exists($kontrol_autoload)) {
+	require_once($kontrol_autoload);
+} else {
+	require_once('vendor/autoload.php');
+}
 
 use Kontrol\Services\Filesystem\{
 	Filesystem,
