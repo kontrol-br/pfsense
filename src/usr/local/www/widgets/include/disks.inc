@@ -26,6 +26,22 @@ if (file_exists($kontrol_autoload)) {
 	require_once('vendor/autoload.php');
 }
 
+if (!class_exists('Kontrol\\Services\\Filesystem\\Filesystems')) {
+	$kontrol_filesystem_root = '/usr/local/Kontrol/include/Services/Filesystem';
+	$kontrol_filesystem_fallbacks = array(
+		"{$kontrol_filesystem_root}/Filesystem.php",
+		"{$kontrol_filesystem_root}/Provider/AbstractProvider.php",
+		"{$kontrol_filesystem_root}/Provider/SystemProvider.php",
+		"{$kontrol_filesystem_root}/Filesystems.php",
+	);
+
+	foreach ($kontrol_filesystem_fallbacks as $file) {
+		if (file_exists($file)) {
+			require_once($file);
+		}
+	}
+}
+
 use Kontrol\Services\Filesystem\{
 	Filesystem,
 	Filesystems,
