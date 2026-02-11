@@ -121,7 +121,7 @@ www/pound
 converters/base64
 www/sarg
 www/Kontrol-pkg-sarg
-www/e2guardian54
-www/Kontrol-pkg-E2guardian54
+#www/e2guardian54
+#www/Kontrol-pkg-E2guardian54
 www/Kontrol-pkg-KontrolSquid
 www/Kontrol-pkg-KontrolSquid-Legacy
