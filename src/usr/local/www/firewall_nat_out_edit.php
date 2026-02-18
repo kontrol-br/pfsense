@@ -5,7 +5,7 @@
  * part of pfSense (https://www.pfsense.org)
  * Copyright (c) 2004-2013 BSD Perimeter
  * Copyright (c) 2013-2016 Electric Sheep Fencing
- * Copyright (c) 2014-2025 Rubicon Communications, LLC (Netgate)
+ * Copyright (c) 2014-2026 Rubicon Communications, LLC (Netgate)
  * All rights reserved.
  *
  * originally based on m0n0wall (http://m0n0.ch/wall)
@@ -247,14 +247,19 @@ $group->add(new Form_Checkbox(
 
 $section->add($group);
 
-$section->addInput(new Form_Checkbox(
+$group = new Form_Group(gettext('Endpoint-Independent Mapping'));
+$group->addClass('eimnat');
+
+$group->add(new Form_Checkbox(
 	'eimnat',
-	gettext('Endpoint-Independent Mapping'),
+	null,
 	gettext('Enable EIM-NAT for UDP connections'),
 	$pconfig['eimnat']
 ))->setHelp(gettext("Experimental. Allows for a consistent external IP:port mapping across " .
 	"multiple destinations when the client's source IP:port is the same. Inbound communication " .
 	"is only possible after the client initiates contact with the respective destination."));
+$section->add($group);
+
 $form->add($section);
 
 $section = new Form_Section('Misc');
@@ -347,15 +352,18 @@ events.push(function() {
 	}
 
 	function proto_change() {
-		portsenabled = ($('#protocol :selected').val() == 'any' || (jQuery.inArray($('#protocol :selected').val(), Object.keys(<?=json_encode(get_ipprotocols('portsonly'))?>)) != -1)) ? true : false;
+		proto = $('#protocol :selected').val()
+		portsenabled = (proto == 'any' || (jQuery.inArray(proto, Object.keys(<?=json_encode(get_ipprotocols('portsonly'))?>)) != -1)) ? true : false;
 		if (portsenabled) {
 			hideGroupInput('sourceport', false);
 			hideGroupInput('dstport', false);
 			hideClass('natportgrp', false);
+			hideClass('eimnat', (proto == 'sctp' || proto == 'tcp'));
 		} else {
 			hideGroupInput('sourceport', true);
 			hideGroupInput('dstport', true);
 			hideClass('natportgrp', true);
+			hideClass('eimnat', true);
 		}
 	}
 

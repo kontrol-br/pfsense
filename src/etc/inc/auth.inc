@@ -8,7 +8,7 @@
  * Copyright (c) 2006 Paul Taylor <paultaylor@winn-dixie.com>
  * Copyright (c) 2004-2013 BSD Perimeter
  * Copyright (c) 2013-2016 Electric Sheep Fencing
- * Copyright (c) 2014-2025 Rubicon Communications, LLC (Netgate)
+ * Copyright (c) 2014-2026 Rubicon Communications, LLC (Netgate)
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -1707,9 +1707,13 @@ function ldap_backed($username, $passwd, $authcfg, &$attributes = array()) {
 				$username = $info[0]['dn'];
 			}
 			$ldapgroupfilter = "(&({$ldapgroupattribute}={$username})({$ldapextendedquery}))";
-			$groupsearch = @$ldapfunc($ldap, $ldapdn, $ldapgroupfilter);
+			$groupsearch = @$ldapfunc(
+				$ldap,
+				((isset($authcfg['ldap_rfc2307_basedn_groups']) && !empty($ldapbasedn)) ? $ldapbasedn : $ldapdn),
+				$ldapgroupfilter
+			);
 			if (g_get('debug')) {
-				logger(LOG_DEBUG, localize_text("RFC2307 group filter search: %s", $ldapgroupfilter), LOG_PREFIX_AUTHPROVIDER_LDAP);
+				logger(LOG_DEBUG, localize_text("RFC2307 group filter search: %s (DN: %s)", $ldapgroupfilter, $groupsearch), LOG_PREFIX_AUTHPROVIDER_LDAP);
 			}
 		}
 
@@ -1802,6 +1806,7 @@ function radius_backed($username, $password, $authcfg, &$attributes = array()) {
 	// Create our instance
 	$classname = 'Auth_RADIUS_' . $radius_protocol;
 	$rauth = new $classname($username, $password);
+	$rauth->useMsgAuth = !isset($authcfg['disable_radius_msg_auth']);
 
 	/* Add new servers to our instance */
 	foreach ($radiusservers as $radsrv) {

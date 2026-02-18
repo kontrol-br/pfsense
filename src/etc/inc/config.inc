@@ -5,7 +5,7 @@
  * part of pfSense (https://www.pfsense.org)
  * Copyright (c) 2004-2013 BSD Perimeter
  * Copyright (c) 2013-2016 Electric Sheep Fencing
- * Copyright (c) 2014-2025 Rubicon Communications, LLC (Netgate)
+ * Copyright (c) 2014-2026 Rubicon Communications, LLC (Netgate)
  * All rights reserved.
  *
  * originally part of m0n0wall (http://m0n0.ch/wall)
@@ -54,7 +54,7 @@ ini_set("memory_limit", get_php_default_memory($ARCH) . 'M');
 /* if /debugging exists, lets set debug
    so we can output more information */
 if (file_exists("/debugging")) {
-	g_set('debug', true);
+	g_set('debug', true, true);
 }
 
 if (is_platform_booting() && is_cli_sapi() &&
@@ -128,6 +128,10 @@ if (is_platform_booting() && is_cli_sapi() &&
 }
 
 config_read_file(true, true);
+
+if (config_path_enabled('system', 'developerspew')) {
+	g_set('debug', true, true);
+}
 
 /* set timezone */
 $timezone = config_get_path('system/timezone');

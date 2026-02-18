@@ -5,7 +5,7 @@
  * part of pfSense (https://www.pfsense.org)
  * Copyright (c) 2004-2013 BSD Perimeter
  * Copyright (c) 2013-2016 Electric Sheep Fencing
- * Copyright (c) 2014-2025 Rubicon Communications, LLC (Netgate)
+ * Copyright (c) 2014-2026 Rubicon Communications, LLC (Netgate)
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -83,7 +83,7 @@ if ($this_qinq_config) {
 	$pconfig['tag_type'] = $this_vlan_config['tag_type'];
 	$pconfig['tag'] = $this_qinq_config['tag'];
 	$pconfig['members'] = $this_qinq_config['members'];
-	$pconfig['descr'] = html_entity_decode($this_qinq_config['descr']);
+	$pconfig['descr'] = $this_qinq_config['descr'];
 	$pconfig['autogroup'] = isset($this_qinq_config['autogroup']);
 	$pconfig['autoadjustmtu'] = isset($this_qinq_config['autoadjustmtu']);
 }

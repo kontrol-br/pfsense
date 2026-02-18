@@ -5,7 +5,7 @@
  * part of pfSense (https://www.pfsense.org)
  * Copyright (c) 2004-2013 BSD Perimeter
  * Copyright (c) 2013-2016 Electric Sheep Fencing
- * Copyright (c) 2014-2025 Rubicon Communications, LLC (Netgate)
+ * Copyright (c) 2014-2026 Rubicon Communications, LLC (Netgate)
  * All rights reserved.
  *
  * originally based on m0n0wall (http://m0n0.ch/wall)
@@ -258,7 +258,8 @@ function staticrouteAlias($id) {
 	$referenced_by = array();
 	$alias_name = config_get_path('aliases/alias/' . $id . '/name');
 
-	if (config_get_path('aliases/alias/' . $id . '/type') != 'host') {
+	if ((config_get_path('aliases/alias/' . $id . '/type') != 'host') &&
+	    (config_get_path('aliases/alias/' . $id . '/type') != 'network')) {
 		return false;
 	}
 
@@ -708,6 +709,10 @@ function saveAlias($post, $id) {
 		}
 
 		write_config(gettext("Edited a firewall alias."));
+
+		// Refresh alias cache. Needed for any further processing that
+		// uses $aliastable such as system_staticroutes_configure().
+		alias_make_table();
 
 		/* restart related OpenVPN instances, see https://redmine.pfsense.org/issues/2668
 		 * reload related static routes, see https://redmine.pfsense.org/issues/7547 */

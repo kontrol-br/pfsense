@@ -5,7 +5,7 @@
  * part of pfSense (https://www.pfsense.org)
  * Copyright (c) 2010-2013 BSD Perimeter
  * Copyright (c) 2013-2016 Electric Sheep Fencing
- * Copyright (c) 2014-2025 Rubicon Communications, LLC (Netgate)
+ * Copyright (c) 2014-2026 Rubicon Communications, LLC (Netgate)
  * Copyright (c) 2010 Erik Fonnesbeck
  * All rights reserved.
  *
@@ -114,10 +114,10 @@ function cData_attr($parser, $data) {
 		}
 
 		if (is_string($ptr)) {
-			$ptr .= html_entity_decode($data);
+			$ptr .= html_entity_decode($data, ENT_QUOTES | ENT_SUBSTITUTE | ENT_XML1);
 		} else {
 			if (trim($data, " ") != "") {
-				$ptr = html_entity_decode($data);
+				$ptr = html_entity_decode($data, ENT_QUOTES | ENT_SUBSTITUTE | ENT_XML1);
 				$havedata++;
 			}
 		}

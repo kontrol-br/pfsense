@@ -5,7 +5,7 @@
  * part of pfSense (https://www.pfsense.org)
  * Copyright (c) 2004-2013 BSD Perimeter
  * Copyright (c) 2013-2016 Electric Sheep Fencing
- * Copyright (c) 2014-2025 Rubicon Communications, LLC (Netgate)
+ * Copyright (c) 2014-2026 Rubicon Communications, LLC (Netgate)
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -542,7 +542,7 @@ if ($act == "new" || $act == gettext("Save")) {
 		<div class="panel-body table-responsive">
 <?php
 	if (!is_array($crl['cert']) || (count($crl['cert']) == 0)) {
-		print_info_box(gettext("No certificates found for this CRL."), 'danger');
+		print_info_box(gettext("No certificates found in this CRL."), 'danger');
 	} else {
 ?>
 			<table class="table table-striped table-hover table-condensed sortable-theme-bootstrap" data-sortable>

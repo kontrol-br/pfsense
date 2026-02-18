@@ -5,7 +5,7 @@
  * part of pfSense (https://www.pfsense.org)
  * Copyright (c) 2004-2013 BSD Perimeter
  * Copyright (c) 2013-2016 Electric Sheep Fencing
- * Copyright (c) 2014-2025 Rubicon Communications, LLC (Netgate)
+ * Copyright (c) 2014-2026 Rubicon Communications, LLC (Netgate)
  * All rights reserved.
  *
  * originally part of m0n0wall (http://m0n0.ch/wall)
@@ -34,7 +34,7 @@ define('DYNDNS_PROVIDER_DESCRIPTIONS', 'All-Inkl.com,Azure DNS,Azure DNS (v6),Ci
 function services_radvd_configure($blacklist = array()) {
 	global $g;
 
-	if (config_path_enabled('system','developerspew')) {
+	if (g_get('debug')) {
 		$mt = microtime();
 		echo "services_radvd_configure() being called $mt\n";
 	}
@@ -549,7 +549,7 @@ function services_kea6_configure(bool $with_custom = true) {
 		return;
 	}
 
-	if (config_path_enabled('system','developerspew')) {
+	if (g_get('debug')) {
 		$mt = microtime();
 		echo "services_kea6_configure() being called $mt\n";
 	}
@@ -1384,7 +1384,7 @@ function services_kea4_configure(bool $with_custom = true) {
 		return;
 	}
 
-	if (config_path_enabled('system','developerspew')) {
+	if (g_get('debug')) {
 		$mt = microtime();
 		echo "services_kea4_configure() being called $mt\n";
 	}
@@ -2628,7 +2628,7 @@ function services_dhcpdv4_configure() {
 		return;
 	}
 
-	if (config_path_enabled('system','developerspew')) {
+	if (g_get('debug')) {
 		$mt = microtime();
 		echo "services_dhcpdv4_configure() being called $mt\n";
 	}
@@ -3767,7 +3767,7 @@ function services_dhcpdv6_configure($blacklist = array()) {
 		return;
 	}
 
-	if (config_path_enabled('system','developerspew')) {
+	if (g_get('debug')) {
 		$mt = microtime();
 		echo "services_dhcpd_configure() being called $mt\n";
 	}
@@ -4270,7 +4270,7 @@ EOD;
 function services_dhcrelay_configure() {
 	global $g;
 
-	if (config_path_enabled('system','developerspew')) {
+	if (g_get('debug')) {
 		$mt = microtime();
 		echo "services_dhcrelay_configure() being called $mt\n";
 	}
@@ -4390,7 +4390,7 @@ function services_dhcrelay_configure() {
 function services_dhcrelay6_configure() {
 	global $g;
 
-	if (config_path_enabled('system','developerspew')) {
+	if (g_get('debug')) {
 		$mt = microtime();
 		echo "services_dhcrelay6_configure() being called $mt\n";
 	}
@@ -4514,7 +4514,7 @@ function services_dyndns_configure_client($conf) {
 }
 
 function services_dyndns_configure($int = "") {
-	if (config_path_enabled('system','developerspew')) {
+	if (g_get('debug')) {
 		$mt = microtime();
 		echo "services_dyndns_configure() being called $mt\n";
 	}
@@ -4758,7 +4758,7 @@ function services_dnsmasq_configure($restart_dhcp = true) {
 	);
 
 
-	if (config_path_enabled('system','developerspew')) {
+	if (g_get('debug')) {
 		$mt = microtime();
 		echo "services_dnsmasq_configure() being called $mt\n";
 	}
@@ -4935,7 +4935,7 @@ function services_unbound_configure($restart_dhcp = true, $interface = '') {
 	global $g;
 	$return = 0;
 
-	if (config_path_enabled('system','developerspew')) {
+	if (g_get('debug')) {
 		$mt = microtime();
 		echo "services_unbound_configure() being called $mt\n";
 	}
@@ -5088,7 +5088,7 @@ function services_unbound_configure($restart_dhcp = true, $interface = '') {
 
 function services_snmpd_configure($interface='') {
 	global $g;
-	if (config_path_enabled('system','developerspew')) {
+	if (g_get('debug')) {
 		$mt = microtime();
 		echo "services_snmpd_configure() being called $mt\n";
 	}
@@ -5342,7 +5342,7 @@ EOD;
 
 function services_dnsupdate_process($int = "", $updatehost = "", $forced = false) {
 	global $g;
-	if (config_path_enabled('system','developerspew')) {
+	if (g_get('debug')) {
 		$mt = microtime();
 		echo "services_dnsupdate_process() being called $mt\n";
 	}

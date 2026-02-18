@@ -6,7 +6,7 @@
  * Copyright (c) 2008 Bill Marquette, Seth Mos
  * Copyright (c) 2008-2013 BSD Perimeter
  * Copyright (c) 2013-2016 Electric Sheep Fencing
- * Copyright (c) 2014-2025 Rubicon Communications, LLC (Netgate)
+ * Copyright (c) 2014-2026 Rubicon Communications, LLC (Netgate)
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -1427,11 +1427,13 @@ function fixup_default_gateway($ipprotocol, $gateways_status, $gateways_arr) {
 				$fallback = $gwname;
 			}
 		}
-		if (empty($set_dfltgwname) && !empty($fallback)) {
-			logger(LOG_NOTICE, localize_text("No default gateway available for %s, use the first one configured. '%s'", $ipprotocol, $fallback));
-			$set_dfltgwname = $fallback;
-		} else {
-			logger(LOG_ERR, localize_text("No default gateway found"));
+		if (empty($set_dfltgwname)) {
+			if (!empty($fallback)) {
+				logger(LOG_NOTICE, localize_text("No default gateway available for %s, use the first one configured. '%s'", $ipprotocol, $fallback));
+				$set_dfltgwname = $fallback;
+			} else {
+				logger(LOG_ERR, localize_text("No default gateway found"));
+			}
 		}
 	} else {
 		// a gwgroup is selected

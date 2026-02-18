@@ -5,7 +5,7 @@
  * part of pfSense (https://www.pfsense.org)
  * Copyright (c) 2004-2013 BSD Perimeter
  * Copyright (c) 2013-2016 Electric Sheep Fencing
- * Copyright (c) 2014-2025 Rubicon Communications, LLC (Netgate)
+ * Copyright (c) 2014-2026 Rubicon Communications, LLC (Netgate)
  * All rights reserved.
  *
  * originally based on m0n0wall (http://m0n0.ch/wall)
@@ -2973,7 +2973,7 @@ EOD;
 
 function interfaces_sync_setup() {
 
-	if (config_get_path('system/developerspew')) {
+	if (g_get('debug')) {
 		$mt = microtime();
 		echo "interfaces_sync_setup() being called $mt\n";
 	}
@@ -3046,7 +3046,7 @@ function interfaces_sync_setup() {
 
 function interface_proxyarp_configure($interface = "") {
 	global $g;
-	if (config_get_path('system/developerspew')) {
+	if (g_get('debug')) {
 		$mt = microtime();
 		echo "interface_proxyarp_configure() being called $mt\n";
 	}
@@ -3158,7 +3158,7 @@ function interface_vip_cleanup($interface, $inet = "all", $type = VIP_ALL) {
 }
 
 function interfaces_vips_configure($interface = "") {
-	if (config_get_path('system/developerspew')) {
+	if (g_get('debug')) {
 		$mt = microtime();
 		echo "interfaces_vips_configure() being called $mt\n";
 	}
@@ -3218,7 +3218,7 @@ function interface_ipalias_configure(&$vip) {
 		if (is_pseudo_interface($realif)) {
 			if (is_ipaddrv4($vip['subnet'])) {
 				$gateway = get_interface_gateway($if);
-			} else {
+			} else if (!config_path_enabled('system', 'use_if_pppoe')) {
 				$gateway = get_interface_gateway_v6($if);
 			}
 		}
@@ -3240,7 +3240,7 @@ function interface_ipalias_configure(&$vip) {
 }
 
 function interface_carp_configure(&$vip, $maintenancemode_only = false, $ipalias_reload = false) {
-	if (config_get_path('system/developerspew')) {
+	if (g_get('debug')) {
 		$mt = microtime();
 		echo "interface_carp_configure() being called $mt\n";
 	}
@@ -4550,13 +4550,6 @@ function interface_track6_configure($interface, $wancfg, $linkupevent = false) {
 	/* If the interface is not configured via another, exit */
 	if (empty($wancfg['track6-interface'])) {
 		return;
-	}
-
-	/* always configure a link-local of fe80::1:1 on the track6 interfaces */
-	$realif = get_real_interface($interface);
-	$linklocal = find_interface_ipv6_ll($realif, true);
-	if (!empty($linklocal) && $linklocal != "fe80::1:1%{$realif}") {
-		mwexec("/sbin/ifconfig {$realif} inet6 fe80::1:1%{$realif} alias");
 	}
 
 	$trackcfg = config_get_path("interfaces/{$wancfg['track6-interface']}");
@@ -7064,9 +7057,14 @@ function is_altq_capable($int) {
 			"sis", "sk", "ste", "stge", "ti", "tun", "txp", "udav",
 			"ural", "vge", "vlan", "vmx", "vr", "vte", "vtnet", "xl");
 
+	// These drivers have optional ALTQ support, which can be disabled
+	$optionally_capable = array("hn", "vtnet");
+
 	$int_family = remove_ifindex($int);
 
-	if (in_array($int_family, $capable)) {
+	if (in_array($int_family, $capable) && !in_array($int_family, $optionally_capable)) {
+		return true;
+	} elseif (in_array($int_family, $optionally_capable) && config_path_enabled('system','hn_altq_enable')) {
 		return true;
 	} elseif (stristr($int, "l2tp")) { /* VLANs are named $parent_$vlan now */
 		return true;
@@ -7366,7 +7364,7 @@ function get_vip_descr($ipaddress) {
 }
 
 function interfaces_staticarp_configure($if) {
-	if (config_get_path('system/developerspew')) {
+	if (g_get('debug')) {
 		$mt = microtime();
 		echo "interfaces_staticarp_configure($if) being called $mt\n";
 	}
@@ -7678,7 +7676,7 @@ function is_stf_interface($inf) {
 	}
 }
 
-function restart_interface_services($interface, $ipv6type = "") {
+function restart_interface_services($interface, $ipv6type = "", $force = false) {
 
 	services_unbound_configure(true, $interface);
 
@@ -7686,9 +7684,7 @@ function restart_interface_services($interface, $ipv6type = "") {
 	services_snmpd_configure($interface);
 	vpn_l2tp_configure($interface);
 
-	if (substr(config_get_path("interfaces/{$interface}/if",""), 0, 4) != "ovpn") {
-		openvpn_resync_all($interface);
-	}
+	openvpn_resync_all($interface, '', $force);
 	ipsec_force_reload($interface);
 
 	/* restart RADVD to announce correct IPv6 prefix

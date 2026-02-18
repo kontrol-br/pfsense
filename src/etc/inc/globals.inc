@@ -5,7 +5,7 @@
  * part of pfSense (https://www.pfsense.org)
  * Copyright (c) 2004-2013 BSD Perimeter
  * Copyright (c) 2013-2016 Electric Sheep Fencing
- * Copyright (c) 2014-2025 Rubicon Communications, LLC (Netgate)
+ * Copyright (c) 2014-2026 Rubicon Communications, LLC (Netgate)
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -87,7 +87,7 @@ $g = [
 	'disablehelpicon' => true,
 	'disablecrashreporter' => true,
 	'debug' => false,
-	'latest_config' => '24.3',
+	'latest_config' => '24.4',
 	'minimum_ram_warning' => '101',
 	'minimum_ram_warning_text' => '128 MB',
 	'wan_interface_name' => 'wan',
@@ -106,7 +106,7 @@ $g = [
 	'default_log_entries' => 500,
 	'default_log_size' => 512000,
 	'minimumtableentries_bogonsv6' => 400000,
-	'alternativemetaports' => ['vmware', 'php72', 'php73', 'php74', 'php84'],
+	'alternativemetaports' => ['vmware'],
 	'backuppath' => [
 		'captiveportal' => '/var/db/captiveportal*.db',
 		'dhcpd' => '{/var/dhcpd/var/db/dhcpd.leases,/var/lib/kea/dhcp4.leases}',
@@ -905,3 +905,5 @@ function get_ipprotocols(?string $type = ''):array {
 if (can_include('globals.plus.inc')) {
 	include_once('globals.plus.inc');
 }
+
+add_default_system_package(['name' => 'pfSense-pkg-System_Patches']);

@@ -5,7 +5,7 @@
  * part of pfSense (https://www.pfsense.org)
  * Copyright (c) 2004-2013 BSD Perimeter
  * Copyright (c) 2013-2016 Electric Sheep Fencing
- * Copyright (c) 2014-2025 Rubicon Communications, LLC (Netgate)
+ * Copyright (c) 2014-2026 Rubicon Communications, LLC (Netgate)
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -61,7 +61,7 @@ if ($this_ifgroup_config) {
 
 	$pconfig['ifname'] = $this_ifgroup_config['ifname'];
 	$pconfig['members'] = $this_ifgroup_config['members'];
-	$pconfig['descr'] = html_entity_decode($this_ifgroup_config['descr']);
+	$pconfig['descr'] = $this_ifgroup_config['descr'];
 }
 
 $ifname_allowed_chars_text = gettext("Only letters (A-Z), digits (0-9) and '_' are allowed.");

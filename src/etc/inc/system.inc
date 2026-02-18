@@ -5,7 +5,7 @@
  * part of pfSense (https://www.pfsense.org)
  * Copyright (c) 2004-2013 BSD Perimeter
  * Copyright (c) 2013-2016 Electric Sheep Fencing
- * Copyright (c) 2014-2025 Rubicon Communications, LLC (Netgate)
+ * Copyright (c) 2014-2026 Rubicon Communications, LLC (Netgate)
  * All rights reserved.
  *
  * originally part of m0n0wall (http://m0n0.ch/wall)
@@ -142,6 +142,15 @@ function system_get_sysctls() {
 		$disp_sysctl[$sysctl] = array('tunable' => $sysctl, 'value' => $value, 'descr' => get_sysctl_descr($sysctl));
 	}
 	unset($disp_cache);
+
+	/* Sort alphabetically by tunable name */
+	array_multisort(
+		array_column($disp_sysctl, 'tunable'),
+		SORT_ASC,
+		SORT_NATURAL,
+		$disp_sysctl
+	);
+
 	return $disp_sysctl;
 }
 
@@ -237,7 +246,7 @@ function set_sysctl_config($oid, $value) {
 function system_resolvconf_generate($dynupdate = false) {
 	global $g;
 
-	if (config_path_enabled('system', 'developerspew')) {
+	if (g_get('debug')) {
 		$mt = microtime();
 		echo "system_resolvconf_generate() being called $mt\n";
 	}
@@ -643,7 +652,7 @@ function system_hosts_entries($dnscfg) {
 
 function system_hosts_generate() {
 	global $g;
-	if (config_path_enabled('system', 'developerspew')) {
+	if (g_get('debug')) {
 		$mt = microtime();
 		echo "system_hosts_generate() being called $mt\n";
 	}
@@ -1042,7 +1051,7 @@ function system_get_kea6prefixes() {
 			continue;
 		}
 
-		$query6 = &$lease['user-context']['Netgate']['query6'];
+		$query6 = &$lease['user-context']['ISC']['binding-variables'];
 		if (!isset($query6, $query6['remote-addr'], $query6['iface-name'])) {
 			continue;
 		}
@@ -1626,7 +1635,7 @@ function system_get_dhcpleases($dnsavailable=null) {
 }
 
 function system_hostname_configure() {
-	if (config_path_enabled('system', 'developerspew')) {
+	if (g_get('debug')) {
 		$mt = microtime();
 		echo "system_hostname_configure() being called $mt\n";
 	}
@@ -1644,7 +1653,7 @@ function system_hostname_configure() {
 }
 
 function system_routing_configure($interface = "") {
-	if (config_path_enabled('system', 'developerspew')) {
+	if (g_get('debug')) {
 		$mt = microtime();
 		echo "system_routing_configure() being called $mt\n";
 	}
@@ -1881,7 +1890,7 @@ function delete_static_route($id, $delete = false) {
 }
 
 function system_routing_enable() {
-	if (config_path_enabled('system', 'developerspew')) {
+	if (g_get('debug')) {
 		$mt = microtime();
 		echo "system_routing_enable() being called $mt\n";
 	}
@@ -1975,7 +1984,7 @@ function system_webgui_start() {
 function get_dns_nameservers($add_v6_brackets = false, $hostns=true) {
 	$dns_nameservers = array();
 
-	if (config_path_enabled('system', 'developerspew')) {
+	if (g_get('debug')) {
 		$mt = microtime();
 		echo "get_dns_nameservers() being called $mt\n";
 	}
@@ -2030,7 +2039,7 @@ function system_generate_nginx_config($filename,
 
 	global $g;
 
-	if (config_path_enabled('system', 'developerspew')) {
+	if (g_get('debug')) {
 		$mt = microtime();
 		echo "system_generate_nginx_config() being called $mt\n";
 	}
@@ -2353,7 +2362,7 @@ function system_get_timezone_list() {
 
 function system_timezone_configure() {
 	global $g;
-	if (config_path_enabled('system', 'developerspew')) {
+	if (g_get('debug')) {
 		$mt = microtime();
 		echo "system_timezone_configure() being called $mt\n";
 	}
@@ -3071,7 +3080,7 @@ function system_reboot_cleanup() {
 }
 
 function system_do_shell_commands($early = 0) {
-	if (config_path_enabled('system', 'developerspew')) {
+	if (g_get('debug')) {
 		$mt = microtime();
 		echo "system_do_shell_commands() being called $mt\n";
 	}
@@ -3098,7 +3107,7 @@ function system_do_shell_commands($early = 0) {
 
 function system_dmesg_save() {
 	global $g;
-	if (config_path_enabled('system', 'developerspew')) {
+	if (g_get('debug')) {
 		$mt = microtime();
 		echo "system_dmesg_save() being called $mt\n";
 	}
@@ -3135,7 +3144,7 @@ function system_dmesg_save() {
 }
 
 function system_set_harddisk_standby() {
-	if (config_path_enabled('system', 'developerspew')) {
+	if (g_get('debug')) {
 		$mt = microtime();
 		echo "system_set_harddisk_standby() being called $mt\n";
 	}
@@ -3169,7 +3178,7 @@ function system_set_harddisk_standby() {
 }
 
 function system_setup_sysctl() {
-	if (config_path_enabled('system', 'developerspew')) {
+	if (g_get('debug')) {
 		$mt = microtime();
 		echo "system_setup_sysctl() being called $mt\n";
 	}
@@ -3182,7 +3191,7 @@ function system_setup_sysctl() {
 }
 
 function system_disable_arp_wrong_if() {
-	if (config_path_enabled('system', 'developerspew')) {
+	if (g_get('debug')) {
 		$mt = microtime();
 		echo "system_disable_arp_wrong_if() being called $mt\n";
 	}
@@ -3193,7 +3202,7 @@ function system_disable_arp_wrong_if() {
 }
 
 function system_enable_arp_wrong_if() {
-	if (config_path_enabled('system', 'developerspew')) {
+	if (g_get('debug')) {
 		$mt = microtime();
 		echo "system_enable_arp_wrong_if() being called $mt\n";
 	}

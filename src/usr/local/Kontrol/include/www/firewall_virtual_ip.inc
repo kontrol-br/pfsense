@@ -3,7 +3,7 @@
  * firewall_virtual_ip.inc.inc
  *
  * part of pfSense (https://www.pfsense.org)
- * Copyright (c) 2014-2025 Rubicon Communications, LLC (Netgate)
+ * Copyright (c) 2014-2026 Rubicon Communications, LLC (Netgate)
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -80,32 +80,30 @@ function saveVIP($post, $json = false) {
 		}
 	}
 
-	if ($post['subnet']) {
-		if (!is_ipaddr($post['subnet'])) {
-			$input_errors[] = gettext("A valid IP address must be specified.");
+	if (!is_ipaddr($post['subnet'])) {
+		$input_errors[] = gettext("A valid IP address must be specified.");
+	} else {
+		if (isset($id) && isset($a_vip[$id])) {
+			$ignore_if = $a_vip[$id]['interface'];
+			$ignore_mode = $a_vip[$id]['mode'];
+			if (isset($a_vip[$id]['uniqid']))
+				$ignore_uniqid = $a_vip[$id]['uniqid'];
 		} else {
-			if (isset($id) && isset($a_vip[$id])) {
-				$ignore_if = $a_vip[$id]['interface'];
-				$ignore_mode = $a_vip[$id]['mode'];
-				if (isset($a_vip[$id]['uniqid']))
-					$ignore_uniqid = $a_vip[$id]['uniqid'];
-			} else {
-				$ignore_if = $post['interface'];
-				$ignore_mode = $post['mode'];
-			}
-
-			if (!isset($ignore_uniqid))
-				$ignore_uniqid = $post['uniqid'];
-
-			if ($ignore_mode == 'carp' || $ignore_mode == 'ipalias')
-				$ignore_if = "_vip{$ignore_uniqid}";
-
-			if (is_ipaddr_configured($post['subnet'], $ignore_if)) {
-				$input_errors[] = gettext("This IP address is being used by another interface or VIP.");
-			}
-
-			unset($ignore_if, $ignore_mode);
+			$ignore_if = $post['interface'];
+			$ignore_mode = $post['mode'];
 		}
+
+		if (!isset($ignore_uniqid))
+			$ignore_uniqid = $post['uniqid'];
+
+		if ($ignore_mode == 'carp' || $ignore_mode == 'ipalias')
+			$ignore_if = "_vip{$ignore_uniqid}";
+
+		if (is_ipaddr_configured($post['subnet'], $ignore_if)) {
+			$input_errors[] = gettext("This IP address is being used by another interface or VIP.");
+		}
+
+		unset($ignore_if, $ignore_mode);
 	}
 
 	$natiflist = get_configured_interface_with_descr();

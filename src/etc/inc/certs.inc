@@ -5,7 +5,7 @@
  * part of pfSense (https://www.pfsense.org)
  * Copyright (c) 2008-2013 BSD Perimeter
  * Copyright (c) 2013-2016 Electric Sheep Fencing
- * Copyright (c) 2014-2025 Rubicon Communications, LLC (Netgate)
+ * Copyright (c) 2014-2026 Rubicon Communications, LLC (Netgate)
  * Copyright (c) 2008 Shrew Soft Inc. All rights reserved.
  * All rights reserved.
  *
@@ -583,7 +583,6 @@ function csr_get_subject($str_crt, $decode = true) {
 }
 
 function cert_get_subject($str_crt, $decode = true) {
-
 	if ($decode) {
 		$str_crt = base64_decode($str_crt);
 	}
@@ -591,8 +590,10 @@ function cert_get_subject($str_crt, $decode = true) {
 	$inf_crt = openssl_x509_parse($str_crt);
 	$components = $inf_crt['subject'];
 
-	if (empty($components) || !is_array($components)) {
-		return "unknown";
+	if (empty($components) ||
+	    !is_array($components)) {
+		/* No subject */
+		return "";
 	}
 
 	ksort($components);
@@ -610,6 +611,38 @@ function cert_get_subject($str_crt, $decode = true) {
 	}
 
 	return $subject;
+}
+
+function cert_get_identity($str_crt, $decode = true, $summarize = false) {
+	if ($decode) {
+		$str_crt = base64_decode($str_crt);
+	}
+	/* Try to get the subject first */
+	$ident = cert_get_subject($str_crt, false);
+	/* If the subject is empty, get the SANs */
+	if (empty($ident)) {
+		/* If cert has SANs, use first SAN as identifier. */
+		$sans = cert_get_sans($str_crt, false);
+		if (is_array($sans) &&
+		    !empty($sans)) {
+			if ($summarize) {
+				/* Lead with first SAN, might be the only one */
+				$ident = "SAN=" . cert_escape_x509_chars(array_shift($sans), true);
+				/* If there are more SANs, print a count. */
+				if (count($sans)) {
+					$ident .= ' ' . sprintf(gettext('and %d more %s'), count($sans), ((count($sans) == 1) ? 'SAN' : 'SANs'));
+				}
+			} else {
+				$ident = implode(', ', cert_escape_x509_chars($sans, true));
+			}
+		} else {
+			/* No subject or SANs, not a valid cert? */
+			$ident = gettext('Unknown');
+		}
+	} else {
+		$ident = cert_escape_x509_chars($ident, true);
+	}
+	return $ident;
 }
 
 function cert_get_subject_array($crt) {
@@ -2306,7 +2339,7 @@ function cert_print_infoblock($cert) {
 		return null;
 	}
 	/* Variable to hold the formatted information */
-	$certextinfo = "";
+	$certextinfo = "<h4>Certificate Properties</h4>";
 
 	/* Serial number */
 	$cert_details = openssl_x509_parse(base64_decode($cert['crt']));
@@ -2519,8 +2552,8 @@ function cert_notify_expiring() {
  ******/
 
 function ca_setup_trust_store() {
-	/* This directory is trusted by OpenSSL on FreeBSD by default */
-	$trust_store_directory = '/usr/local/etc/ssl/certs';
+	/* Source for local CA certificates which will be trusted after "certctl rehash" runs */
+	$trust_store_directory = '/usr/local/share/certs/trusted';
 
 	/* Create the directory if it does not already exist, and clean it up if it does. */
 	safe_mkdir($trust_store_directory);

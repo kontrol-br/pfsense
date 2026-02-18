@@ -5,7 +5,7 @@
  * part of pfSense (https://www.pfsense.org)
  * Copyright (c) 2004-2013 BSD Perimeter
  * Copyright (c) 2013-2016 Electric Sheep Fencing
- * Copyright (c) 2014-2025 Rubicon Communications, LLC (Netgate)
+ * Copyright (c) 2014-2026 Rubicon Communications, LLC (Netgate)
  * All rights reserved.
  *
  * originally part of m0n0wall (http://m0n0.ch/wall)
@@ -2858,7 +2858,7 @@ function mwexec($command, $nologentry = false, $clearsigmask = false, $backgroun
 		// run in foreground, and (optionally) log if nonzero return
 		$outputarray = array();
 		exec("$command 2>&1", $outputarray, $retval);
-		if (($retval <> 0) && (!$nologentry || config_path_enabled('system', 'developerspew'))) {
+		if (($retval <> 0) && (!$nologentry || g_get('debug'))) {
 			logger(LOG_INFO, localize_text("The command '%1\$s' returned exit code '%2\$d', the output was '%3\$s' ", $command, $retval, implode(" ", $outputarray)));
 		}
 	}
@@ -3721,36 +3721,18 @@ function timeout($timer = 9) {
  * NAME
  *   msort - sort array
  * INPUTS
- *   $array to be sorted, field to sort by, direction of sort
+ *   $array to be sorted, field to sort by, direction of sort, sort flags
  * RESULT
  *   returns newly sorted array
  ******/
-function msort($array, $id = "id", $sort_ascending = true) {
-	$temp_array = array();
-	if (!is_array($array)) {
-		return $temp_array;
-	}
-	while (count($array)>0) {
-		$lowest_id = 0;
-		$index = 0;
-		foreach ($array as $item) {
-			if (isset($item[$id])) {
-				if ($array[$lowest_id][$id]) {
-					if (strtolower($item[$id]) < strtolower($array[$lowest_id][$id])) {
-						$lowest_id = $index;
-					}
-				}
-			}
-			$index++;
-		}
-		$temp_array[] = $array[$lowest_id];
-		$array = array_merge(array_slice($array, 0, $lowest_id), array_slice($array, $lowest_id + 1));
-	}
-	if ($sort_ascending) {
-		return $temp_array;
-	} else {
-		return array_reverse($temp_array);
-	}
+function msort($array, $id = "id", $sort_order = SORT_ASC, $sort_flags = SORT_NATURAL | SORT_FLAG_CASE) {
+	array_multisort(
+		array_column($array, $id),
+		$sort_order,
+		$sort_flags,
+		$array
+	);
+	return $array;
 }
 
 /****f* util/is_URL
