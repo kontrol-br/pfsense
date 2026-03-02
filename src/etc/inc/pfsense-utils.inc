@@ -1173,6 +1173,7 @@ function load_loader_conf($loader_conf = NULL, $local = false) {
 	    "hw.e6000sw.default_disabled",
 	    "hw.hn.vf_transparent",
 	    "hw.hn.use_if_start",
+	    "hw.vtnet.altq_disable",
 	    "hw.usb.no_pf",
 	    "net.pf.request_maxcount",
 	    "vm.pmap.pti",
@@ -4838,13 +4839,10 @@ function fix_config_artifacts() {
 			$custom_options = array_filter(explode(';', $tunnel_config['custom_options']));
 			foreach ($custom_options as $idx => &$option) {
 				$option = trim($option);
-				if (!str_starts_with($option, 'tun-mtu ') && !str_starts_with($option, 'mssfix') &&
-				    (($config_path == 'openvpn/openvpn-client') &&
-				     !str_starts_with($option, 'pull-filter ignore tun-mtu') &&
-				     !str_starts_with($option, 'pull-filter ignore "tun-mtu"'))) {
+				if (!preg_match('/^(?:tun-mtu|mssfix|pull-filter\s+ignore\s+["\']?tun-mtu["\']?)\b/', $option)) {
 					continue;
 				}
-				unset($option[$idx]);
+				unset($custom_options[$idx]);
 				$changed = true;
 			}
 			unset($option);
@@ -4897,7 +4895,7 @@ function fix_config_artifacts() {
 				'The following OpenVPN tunnels have a non-default MTU or MSS configuration ' .
 				'with DCO enabled. This requires setting both MTU and MSS values in the ' .
 				'assigned interface configuration (Interfaces > Interface Assignments): %s',
-				implode(', ', $openvpn_dco_interfaces)
+				implode(', ', array_column($openvpn_dco_interfaces, 'description'))
 			)
 		);
 	}
