@@ -430,11 +430,11 @@ EOD;
 	}
 	if (!config_path_enabled('syslog', 'disablelocallogging')) {
 		$syslogconf .= "local5.{$log_level_nginx}							{$g['varlog_path']}/nginx.log\n";
-		$syslogconf .= "*.{$log_level_system};kern.debug;lpr.info;mail.crit;news.err;local0.none;local3.none;local4.none;local7.none;security.*;auth.info;authpriv.info;daemon.none	{$g['varlog_path']}/system.log\n";
+		$syslogconf .= "*.{$log_level_system};kern.debug;lpr.info;mail.crit;news.err;local0.none;local3.none;local4.none;local7.none;security.*;auth.info;authpriv.info;daemon.{$log_level_system}	{$g['varlog_path']}/system.log\n";
 		$syslogconf .= "*.emerg								*\n";
 	}
 	if (!$remote_log_all && config_path_enabled('syslog', 'system')) {
-		$syslogconf .= system_syslogd_get_remote_servers($syslogcfg, "*.emerg;*.{$log_level_system};kern.debug;lpr.info;mail.crit;news.err;local0.none;local3.none;local4.none;local7.none;security.*;auth.info;authpriv.info;daemon.none");
+		$syslogconf .= system_syslogd_get_remote_servers($syslogcfg, "*.emerg;*.{$log_level_system};kern.debug;lpr.info;mail.crit;news.err;local0.none;local3.none;local4.none;local7.none;security.*;auth.info;authpriv.info;daemon.{$log_level_system}");
 	}
 
 	$log_level_all = $log_level_default ?: '*';
@@ -512,7 +512,34 @@ EOD;
 			usleep(100000);
 		}
 
-		$retval = mwexec_bg("/usr/sbin/syslogd {$syslogd_format} -s -c -c {$syslogd_sockets} -P {$g['varrun_path']}/syslog.pid {$syslogd_extra}");
+		$syslogd_cmd = "/usr/sbin/syslogd {$syslogd_format} -s {$syslogd_sockets} -P {$g['varrun_path']}/syslog.pid {$syslogd_extra}";
+		$syslogd_cmd_nofmt = "/usr/sbin/syslogd -s {$syslogd_sockets} -P {$g['varrun_path']}/syslog.pid {$syslogd_extra}";
+		$syslogd_cmd_compat = "/usr/sbin/syslogd";
+		$syslogd_cmds = array_unique([$syslogd_cmd, $syslogd_cmd_nofmt, $syslogd_cmd_compat]);
+		$retval = 1;
+
+		foreach ($syslogd_cmds as $cmd) {
+			unlink_if_exists("{$g['varrun_path']}/syslog.pid");
+			$retval = mwexec_bg($cmd);
+			usleep(250000);
+
+			if (!isvalidpid("{$g['varrun_path']}/syslog.pid")) {
+				/* Retry synchronously once to avoid losing logs after boot/restart races. */
+				$retval = mwexec($cmd);
+				usleep(250000);
+			}
+
+			if (isvalidpid("{$g['varrun_path']}/syslog.pid")) {
+				break;
+			}
+		}
+
+		if (!isvalidpid("{$g['varrun_path']}/syslog.pid")) {
+			log_error(gettext("syslogd failed to start, system logging is unavailable."));
+			if (is_platform_booting()) {
+				echo gettext("failed.") . "\n";
+			}
+		}
 	} else {
 		$retval = sigkillbypid("{$g['varrun_path']}/syslog.pid", "HUP");
 	}
