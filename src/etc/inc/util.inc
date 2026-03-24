@@ -260,6 +260,9 @@ define('LOG_AUTH_EVENT_LOGOUT', 2);
 define('LOG_AUTH_EVENT_ERROR', 3);
 define('LOG_AUTH_EVENT_TIMEOUT', 4);
 
+// POSIX constants
+define('POSIX_EPERM', 1);
+
 /**
  * Get a list of valid rule label tags.
  *
@@ -657,15 +660,32 @@ function killbypid($pidfile, $waitfor = 0) {
 	return sigkillbypid($pidfile, "TERM", $waitfor);
 }
 
-function isvalidpid(string $pidfile): bool {
-	exec(implode(' ', [
-		'/bin/pkill',
-		'-0',
-		'-F', $pidfile,
-		'2>/dev/null'
-	]), $_out, $ret);
+function isvalidpid(string $pidfile): bool
+{
+	if (!is_file($pidfile) || !is_readable($pidfile)) {
+		return false;
+	}
 
-	return ($ret === 0);
+	$contents = file_get_contents($pidfile);
+	if ($contents === false) {
+		return false;
+	}
+
+	// Must be a positive integer
+	$pid = filter_var(trim($contents), FILTER_VALIDATE_INT, [
+		'options' => ['min_range' => 1],
+	]);
+	if ($pid === false) {
+		return false;
+	}
+
+	// Signal 0 probes process existence without actually signalling.
+	if (posix_kill($pid, 0)) {
+		return true;
+	}
+
+	// EPERM means the process exists but we lack permission to signal it.
+	return (posix_get_last_error() === POSIX_EPERM);
 }
 
 function is_process_running(string $name): bool {
@@ -2859,7 +2879,7 @@ function mwexec($command, $nologentry = false, $clearsigmask = false, $backgroun
 		$outputarray = array();
 		exec("$command 2>&1", $outputarray, $retval);
 		if (($retval <> 0) && (!$nologentry || g_get('debug'))) {
-			logger(LOG_INFO, localize_text("The command '%1\$s' returned exit code '%2\$d', the output was '%3\$s' ", $command, $retval, implode(" ", $outputarray)));
+			logger(LOG_NOTICE, localize_text("The command '%1\$s' returned exit code '%2\$d', the output was '%3\$s' ", $command, $retval, implode(" ", $outputarray)));
 		}
 	}
 
