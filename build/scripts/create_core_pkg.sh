@@ -45,6 +45,7 @@ Options:
 	-d destdir   -- Destination directory to create package
 	-a ABI       -- Package ABI
 	-A ALTABI    -- Package ALTABI (aka arch)
+	-k keywords  -- Directory containing custom pkg plist keywords
 	-h           -- Show this help and exit
 
 Environment:
@@ -55,7 +56,7 @@ END
 	exit 1
 }
 
-while getopts s:t:f:v:r:F:d:ha:A: opt; do
+while getopts s:t:f:v:r:F:d:ha:A:k: opt; do
 	case "$opt" in
 		t)
 			template=$OPTARG
@@ -84,6 +85,9 @@ while getopts s:t:f:v:r:F:d:ha:A: opt; do
 		A)
 			ALTABI=$OPTARG
 			;;
+		k)
+			keywords_dir=$OPTARG
+			;;
 		*)
 			usage
 			;;
@@ -101,6 +105,9 @@ done
 
 [ -e $destdir -a ! -d $destdir ] \
 	&& err "destination path already exists and is not a directory"
+
+[ -n "${keywords_dir}" -a ! -d "${keywords_dir}" ] \
+	&& err "pkg keyword path is not a directory"
 
 : ${TMPDIR=/tmp}
 : ${PRODUCT_NAME=Kontrol}
@@ -193,8 +200,14 @@ fi
 [ -n "${ALTABI}" ] \
     && echo "arch: ${ALTABI}" >> ${manifest}
 
+if [ -n "${keywords_dir}" ]; then
+	_pkg_create="env PLIST_KEYWORDS_DIR=${keywords_dir} pkg create"
+else
+	_pkg_create="pkg create"
+fi
+
 run "Creating core package ${template_name}" \
-	"pkg create -o ${destdir} -p ${plist} -r ${root} -m ${metadir}"
+	"${_pkg_create} -o ${destdir} -p ${plist} -r ${root} -m ${metadir}"
 
 force_rm ${scratchdir}
 trap "-" 1 2 15 EXIT
