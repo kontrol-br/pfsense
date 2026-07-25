@@ -70,8 +70,12 @@ core_pkg_create_repo() {
 	ln -sf .latest/All ${CORE_PKG_ALL_PATH}
 	#ln -sf .latest/digests.txz ${CORE_PKG_PATH}/digests.txz
 	ln -sf .latest/meta.conf ${CORE_PKG_PATH}/meta.conf
-	ln -sf .latest/meta.txz ${CORE_PKG_PATH}/meta.txz
-	ln -sf .latest/packagesite.txz ${CORE_PKG_PATH}/packagesite.txz
+	for _ext in tzst txz; do
+		[ -f "${CORE_PKG_REAL_PATH}/meta.${_ext}" ] \
+			&& ln -sf ".latest/meta.${_ext}" "${CORE_PKG_PATH}/meta.${_ext}"
+		[ -f "${CORE_PKG_REAL_PATH}/packagesite.${_ext}" ] \
+			&& ln -sf ".latest/packagesite.${_ext}" "${CORE_PKG_PATH}/packagesite.${_ext}"
+	done
 }
 
 # Create core pkg (base, kernel)
@@ -102,6 +106,7 @@ core_pkg_create() {
 		-d "${CORE_PKG_REAL_PATH}/All" \
 		-a "${_abi}" \
 		-A "${_altabi}" \
+		-k "${BUILDER_TOOLS}/templates/pkg_keywords" \
 		|| print_error_pfS
 }
 
@@ -661,6 +666,7 @@ clone_to_staging_area() {
 
 	# Make sure pkg is present
 	pkg_bootstrap ${STAGE_CHROOT_DIR}
+	sanitize_pkg_conf ${STAGE_CHROOT_DIR} ${TARGET_ARCH}
 
 	# Make sure correct repo is available on tmp dir
 	mkdir -p ${STAGE_CHROOT_DIR}/tmp/pkg/pkg-repos
@@ -745,6 +751,14 @@ customize_stagearea_for_image() {
 			local _tgt_server="${PKG_REPO_SERVER_DEVEL}"
 		fi
 		for _db in ${FINAL_CHROOT_DIR}/var/db/pkg/repo-*sqlite; do
+			if [ ! -f "${_db}" ]; then
+				continue
+			fi
+			if ! /usr/local/bin/sqlite3 "${_db}" \
+				"select name from sqlite_master where type='table' and name='repodata'" \
+				| grep -q '^repodata$'; then
+				continue
+			fi
 			_cur=$(/usr/local/bin/sqlite3 ${_db} "${_read_cmd}")
 			_new=$(echo "${_cur}" | sed -e "s,^${PKG_REPO_SERVER_STAGING},${_tgt_server},")
 			/usr/local/bin/sqlite3 ${_db} "update repodata set value='${_new}' where key='packagesite'"
@@ -999,6 +1013,46 @@ get_altabi_arch() {
 	fi
 }
 
+get_osversion() {
+	local _osversion=""
+
+	if [ -n "${FREEBSD_SRC_DIR}" -a -f "${FREEBSD_SRC_DIR}/sys/sys/param.h" ]; then
+		_osversion=$(awk '/^#define[[:space:]]+__FreeBSD_version/ {print $3; exit}' \
+		    ${FREEBSD_SRC_DIR}/sys/sys/param.h)
+	fi
+
+	if [ -z "${_osversion}" ]; then
+		_osversion=$(sysctl -n kern.osreldate 2>/dev/null)
+	fi
+
+	if [ -z "${_osversion}" ]; then
+		_osversion=$(uname -K 2>/dev/null)
+	fi
+
+	echo "${_osversion}"
+}
+
+sanitize_pkg_conf() {
+	local _root="${1}"
+	local _target_arch="${2}"
+	local _pkg_conf="${_root}/usr/local/etc/pkg.conf"
+	local _abi=""
+	local _osversion=""
+
+	if [ ! -f "${_pkg_conf}" ]; then
+		return
+	fi
+
+	_abi=$(sed -e "s/%%ARCH%%/${_target_arch}/g" \
+	    ${PKG_REPO_DEFAULT%%.conf}.abi)
+	_osversion=$(get_osversion)
+
+	sed -i '' -e '/^ALTABI=/d' -e '/^ABI=/d' -e '/^OSVERSION=/d' ${_pkg_conf}
+
+	[ -n "${_abi}" ] && echo "ABI=${_abi}" >> ${_pkg_conf}
+	[ -n "${_osversion}" ] && echo "OSVERSION=${_osversion}" >> ${_pkg_conf}
+}
+
 # Create pkg conf on desired place with desired arch/branch
 setup_pkg_repo() {
 	if [ -z "${4}" ]; then
@@ -1014,6 +1068,8 @@ setup_pkg_repo() {
 	local _mirror_type="none"
 	local MIRROR_TYPE="none"
 	local _signature_type="fingerprints"
+	local _abi=""
+	local _osversion=""
 
 	if [ -z "${_template}" -o ! -f "${_template}" ]; then
 		echo ">>> ERROR: It was not possible to find pkg conf template ${_template}"
@@ -1048,17 +1104,14 @@ setup_pkg_repo() {
 		${_template} \
 		> ${_target}
 
-	local ALTABI_ARCH=$(get_altabi_arch ${_target_arch})
-
-	ABI=$(cat ${_template%%.conf}.abi 2>/dev/null \
+	_abi=$(cat ${_template%%.conf}.abi 2>/dev/null \
 	    | sed -e "s/%%ARCH%%/${_target_arch}/g")
-	ALTABI=$(cat ${_template%%.conf}.altabi 2>/dev/null \
-	    | sed -e "s/%%ARCH%%/${ALTABI_ARCH}/g")
+	_osversion=$(get_osversion)
 
-	if [ -n "${_pkg_conf}" -a -n "${ABI}" -a -n "${ALTABI}" ]; then
+	if [ -n "${_pkg_conf}" -a -n "${_abi}" -a -n "${_osversion}" ]; then
 		mkdir -p $(dirname ${_pkg_conf})
-		echo "ABI=${ABI}" > ${_pkg_conf}
-		echo "ALTABI=${ALTABI}" >> ${_pkg_conf}
+		echo "ABI=${_abi}" > ${_pkg_conf}
+		echo "OSVERSION=${_osversion}" >> ${_pkg_conf}
 	fi
 }
 
