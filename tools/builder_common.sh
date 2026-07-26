@@ -1065,8 +1065,6 @@ setup_pkg_repo() {
 	local _target_arch="${4}"
 	local _staging="${5}"
 	local _pkg_conf="${6}"
-	local _mirror_type="none"
-	local MIRROR_TYPE="none"
 	local _signature_type="fingerprints"
 	local _abi=""
 	local _osversion=""
@@ -1090,9 +1088,13 @@ setup_pkg_repo() {
 
 	mkdir -p $(dirname ${_target}) >/dev/null 2>&1
 
+	# Kontrol repositories are direct HTTP endpoints.  Enforce this in the
+	# generated configuration as well as in the templates so pkg never falls
+	# back to DNS SRV discovery when a custom/older template is supplied.
 	sed \
 		-e "s/%%ARCH%%/${_target_arch}/" \
-		-e "s/%%MIRROR_TYPE%%/${_mirror_type}/" \
+		-e "s/%%MIRROR_TYPE%%/none/" \
+		-e '/mirror_type:/ s/"[^"]*"/"none"/' \
 		-e "s/%%PKG_REPO_BRANCH_DEVEL%%/${_pkg_repo_branch_devel}/g" \
 		-e "s/%%PKG_REPO_BRANCH_RELEASE%%/${_pkg_repo_branch_release}/g" \
 		-e "s,%%PKG_REPO_SERVER_DEVEL%%,${_pkg_repo_server_devel},g" \
