@@ -248,6 +248,29 @@ make_world() {
 		return
 	fi
 
+	# Kontrol must build its own bootstrap compiler rather than accept a host
+	# compiler selected by the FreeBSD system-compiler optimization.
+	if [ ! -f "${SRC_ENV_CONF}" ] || \
+	    ! grep -Eq '^[[:space:]]*WITHOUT_SYSTEM_COMPILER[?+:]?=[[:space:]]*[Yy][Ee][Ss]([[:space:]]*(#.*)?)?$' "${SRC_ENV_CONF}"; then
+		echo ">>> ERROR: ${SRC_ENV_CONF} must set WITHOUT_SYSTEM_COMPILER=YES." | tee -a "${LOGFILE}" >&2
+		echo ">>> A buildworld without that setting may reuse an incompatible host compiler." | tee -a "${LOGFILE}" >&2
+		print_error_pfS
+	fi
+	echo ">>> Confirmed WITHOUT_SYSTEM_COMPILER=YES in ${SRC_ENV_CONF}" | tee -a "${LOGFILE}"
+
+	for _src_conf in "${SRCCONF}" "${SRC_ENV_CONF}"; do
+		[ -f "${_src_conf}" ] || continue
+		if grep -Eq '^[[:space:]]*(WITHOUT_CLANG_BOOTSTRAP|WITHOUT_CLANG)[?+:]?=[[:space:]]*[Yy][Ee][Ss]' "${_src_conf}"; then
+			echo ">>> ERROR: buildworld/cross-toolchain is disabled by a Clang option in ${_src_conf}." | tee -a "${LOGFILE}" >&2
+			echo ">>> Enable CLANG_BOOTSTRAP so buildworld creates its compiler; no host compiler fallback is allowed." | tee -a "${LOGFILE}" >&2
+			print_error_pfS
+		fi
+		if grep -Eq '^[[:space:]]*WITHOUT_TOOLCHAIN[?+:]?=[[:space:]]*[Yy][Ee][Ss]' "${_src_conf}"; then
+			echo ">>> WITHOUT_TOOLCHAIN=YES found in ${_src_conf}; this controls the installed world and does not disable CLANG_BOOTSTRAP." | tee -a "${LOGFILE}"
+		fi
+	done
+	unset _src_conf
+
 	echo ">>> $(LC_ALL=C date) - Starting build world for ${TARGET} architecture..." | tee -a ${LOGFILE}
 	script -aq $LOGFILE ${BUILDER_SCRIPTS}/build_freebsd.sh -K -s ${FREEBSD_SRC_DIR} \
 		|| print_error_pfS
@@ -278,11 +301,45 @@ make_world() {
 		-d ${STAGE_CHROOT_DIR} \
 		|| print_error_pfS
 
-	# Use the builder cross compiler from obj to produce the final binary.
-	cp /usr/bin/cc /usr/Kontrol/tmp/obj/usr/Kontrol/tmp/FreeBSD-src/amd64.amd64/tmp/usr/bin/ #Added by Fabricio to workaround missing cc (line below)
+	# Use only the bootstrap/cross compiler produced by buildworld.  A host
+	# compiler copied here cannot locate its matching Clang resource directory.
 	BUILD_CC="${MAKEOBJDIRPREFIX}${FREEBSD_SRC_DIR}/${TARGET}.${TARGET_ARCH}/tmp/usr/bin/cc"
 
-	[ -f "${BUILD_CC}" ] || print_error_pfS
+	echo ">>> Validating buildworld cross-toolchain" | tee -a "${LOGFILE}"
+	echo ">>> BUILD_CC=${BUILD_CC}" | tee -a "${LOGFILE}"
+	if [ ! -x "${BUILD_CC}" ]; then
+		echo ">>> ERROR: buildworld/cross-toolchain is incomplete: ${BUILD_CC} is not an executable." | tee -a "${LOGFILE}" >&2
+		echo ">>> Clean MAKEOBJDIRPREFIX and run buildworld again; the builder will not fall back to /usr/bin/cc." | tee -a "${LOGFILE}" >&2
+		print_error_pfS
+	fi
+
+	BUILD_CC_VERSION=$("${BUILD_CC}" --version 2>&1)
+	if [ $? -ne 0 ]; then
+		echo ">>> ERROR: buildworld/cross-toolchain is incomplete: '${BUILD_CC} --version' failed." | tee -a "${LOGFILE}" >&2
+		printf '%s\n' "${BUILD_CC_VERSION}" | tee -a "${LOGFILE}" >&2
+		print_error_pfS
+	fi
+	echo ">>> ${BUILD_CC} --version" | tee -a "${LOGFILE}"
+	printf '%s\n' "${BUILD_CC_VERSION}" | tee -a "${LOGFILE}"
+
+	BUILD_CC_RESOURCE_DIR=$("${BUILD_CC}" -print-resource-dir 2>&1)
+	if [ $? -ne 0 ] || [ -z "${BUILD_CC_RESOURCE_DIR}" ]; then
+		echo ">>> ERROR: buildworld/cross-toolchain is incomplete: '${BUILD_CC} -print-resource-dir' failed." | tee -a "${LOGFILE}" >&2
+		printf '%s\n' "${BUILD_CC_RESOURCE_DIR}" | tee -a "${LOGFILE}" >&2
+		print_error_pfS
+	fi
+	echo ">>> resource directory: ${BUILD_CC_RESOURCE_DIR}" | tee -a "${LOGFILE}"
+
+	for _clang_header in wmmintrin.h immintrin.h emmintrin.h; do
+		_clang_header_path="${BUILD_CC_RESOURCE_DIR}/include/${_clang_header}"
+		if [ ! -f "${_clang_header_path}" ]; then
+			echo ">>> ERROR: buildworld/cross-toolchain is incomplete: missing ${_clang_header_path}." | tee -a "${LOGFILE}" >&2
+			echo ">>> Clean MAKEOBJDIRPREFIX and run buildworld again; the builder will not use host Clang headers." | tee -a "${LOGFILE}" >&2
+			print_error_pfS
+		fi
+		echo ">>> found Clang resource header: ${_clang_header_path}" | tee -a "${LOGFILE}"
+	done
+	unset _clang_header _clang_header_path BUILD_CC_VERSION BUILD_CC_RESOURCE_DIR
 
 	# XXX It must go to the scripts
 	[ -d "${STAGE_CHROOT_DIR}/usr/local/bin" ] \
