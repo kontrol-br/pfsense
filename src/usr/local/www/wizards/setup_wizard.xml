@@ -723,18 +723,25 @@
 	global $input_errors, $stepid, $savemsg;
 	$input_errors = [];
 	if (!empty($_POST['newadminpassword']) &&
-	    ($_POST['newadminpassword'] == $_POST['confirmadminpassword'])) {
-		$user_item_config = getUserEntryByUID(0);
+	    ($_POST['newadminpassword'] != $_POST['confirmadminpassword'])) {
+		$input_errors[] = gettext("New and Confirm Passwords do not match!");
+	}
+	if (!empty($_POST['newadminpassword'])) {
+		$admin_username = g_get('factory_shipped_username');
+		$user_item_config = getUserEntry($admin_username);
+		if (!is_array($user_item_config['item'])) {
+			$input_errors[] = gettext("Could not locate the admin account.");
+		} else {
+			$input_errors = array_merge($input_errors,
+			    validate_password($admin_username, $_POST['newadminpassword']));
+		}
+	}
+
+	if (!$input_errors && !empty($_POST['newadminpassword'])) {
 		$admin_user = &$user_item_config['item'];
 		local_user_set_password($user_item_config, $_POST['newadminpassword']);
 		local_user_set($admin_user);
 		write_config(gettext("Setup wizard changed admin account password."));
-	} elseif (!empty($_POST['newadminpassword']) &&
-		  ($_POST['newadminpassword'] != $_POST['confirmadminpassword'])) {
-		$input_errors[] = gettext("New and Confirm Passwords do not match!");
-	}
-	if (!empty($_POST['newadminpassword'])) {
-		$input_errors = array_merge($input_errors, validate_password('admin', $_POST['newadminpassword']));
 	}
 
 	if (count($input_errors) > 0) {
