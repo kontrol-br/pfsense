@@ -1214,32 +1214,6 @@ builder_setup() {
 }
 
 # Updates FreeBSD sources
-apply_freebsd_source_patches() {
-	local _patch_dir="${BUILDER_TOOLS}/patches/freebsd"
-	local _patch
-
-	[ -d "${_patch_dir}" ] || return 0
-
-	for _patch in "${_patch_dir}"/*.patch; do
-		[ -f "${_patch}" ] || continue
-		echo ">>> Applying FreeBSD source patch $(basename "${_patch}")..."
-		if patch -d "${FREEBSD_SRC_DIR}" -p0 -N --forward --silent \
-		    < "${_patch}"; then
-			continue
-		fi
-
-		# A source tree reused by the builder may already contain the patch.
-		if patch -d "${FREEBSD_SRC_DIR}" -p0 -R --dry-run --silent \
-		    < "${_patch}"; then
-			echo ">>> FreeBSD source patch $(basename "${_patch}") is already applied"
-			continue
-		fi
-
-		echo ">>> ERROR: Unable to apply FreeBSD source patch $(basename "${_patch}")"
-		print_error_pfS
-	done
-}
-
 update_freebsd_sources() {
 	if [ "${1}" = "full" ]; then
 		local _full=1
@@ -1271,8 +1245,6 @@ update_freebsd_sources() {
 			grep -C3 -i -E 'error|fatal'
 		echo "Done!"
 	fi
-
-	apply_freebsd_source_patches
 
 	if [ "${PRODUCT_NAME}" = "pfSense" -a -n "${GNID_REPO_BASE}" ]; then
 		echo ">>> Obtaining gnid sources..."
