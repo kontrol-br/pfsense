@@ -1,0 +1,16 @@
+--- stand/efi/loader/main.c.orig
++++ stand/efi/loader/main.c
+@@ -146,7 +146,12 @@ EFI_LOADED_IMAGE *boot_img;
+ enum boot_policies {
+ 	STRICT,
+ 	RELAXED,
+-} boot_policy = RELAXED;
++} boot_policy = STRICT;
++
++/*
++ * Do not leave the boot device to probe an installed ZFS pool when loader.efi
++ * was started from removable media (for example, a Hyper-V Generation 2 DVD).
++ */
+ 
+ const char *policy_map[] = {
+ 	[STRICT] = "strict",
