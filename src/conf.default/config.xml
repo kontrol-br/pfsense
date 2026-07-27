@@ -8,6 +8,7 @@
 		<domain>home.arpa</domain>
 		<dnsserver></dnsserver>
 		<dnsallowoverride></dnsallowoverride>
+		<dnslocalhost>remote</dnslocalhost>
 		<group>
 			<name>all</name>
 			<description><![CDATA[All Users]]></description>
@@ -38,6 +39,7 @@
 		<webgui>
 			<protocol>https</protocol>
 			<loginautocomplete></loginautocomplete>
+			<webguifixedmenu>fixed</webguifixedmenu>
 		</webgui>
 		<disablenatreflection>yes</disablenatreflection>
 		<disablesegmentationoffloading></disablesegmentationoffloading>
@@ -266,16 +268,9 @@
 	</widgets>
 	<openvpn></openvpn>
 	<dnshaper></dnshaper>
-	<unbound>
+	<dnsmasq>
 		<enable></enable>
-		<dnssec></dnssec>
-		<active_interface></active_interface>
-		<outgoing_interface></outgoing_interface>
-		<custom_options></custom_options>
-		<hideidentity></hideidentity>
-		<hideversion></hideversion>
-		<dnssecstripped></dnssecstripped>
-	</unbound>
+	</dnsmasq>
 	<vlans>
 	</vlans>
 	<qinqs>

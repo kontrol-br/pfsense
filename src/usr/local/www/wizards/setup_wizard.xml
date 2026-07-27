@@ -741,6 +741,10 @@
 		$admin_user = &$user_item_config['item'];
 		local_user_set_password($user_item_config, $_POST['newadminpassword']);
 		local_user_set($admin_user);
+		/* invalidate the password security warning cache, see #16720 and #16728 */
+		phpsession_begin();
+		unset($_SESSION['insecure_user']);
+		phpsession_end(true);
 		write_config(gettext("Setup wizard changed admin account password."));
 	}
 
