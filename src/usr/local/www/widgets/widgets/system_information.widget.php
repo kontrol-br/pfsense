@@ -84,7 +84,12 @@ if ($_REQUEST['getupdatestatus']) {
 		exit;
 	}
 
-	$system_version = get_system_pkg_version(($_REQUEST['getupdatestatus'] == 1), false);
+	/*
+	 * Query the active repository.  The upgrade utility's portable check
+	 * interface is -c; checking alternative repositories requires -C, which
+	 * is not supported by every product's upgrade utility.
+	 */
+	$system_version = get_system_pkg_version(($_REQUEST['getupdatestatus'] == 1));
 
 	unset($error);
 	if (isset($system_version['pkg_version_error'])) {
