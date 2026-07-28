@@ -1503,17 +1503,20 @@ pkg_repo_rsync() {
 poudriere_possible_archs() {
 	local _arch=$(uname -m)
 	local _archs=""
+	local _possible_archs=""
 
-	# If host is amd64, we'll create both repos, and if possible armv7
+	# Kontrol releases are amd64-only by default. Keep armv7 available only as
+	# an explicit ARCH_LIST override for developers with a configured emulator.
 	if [ "${_arch}" = "amd64" ]; then
 		_archs="amd64.amd64"
+		_possible_archs="${_archs}"
 
 		if [ -f /usr/local/bin/qemu-arm-static ]; then
 			# Make sure binmiscctl is ok
 			/usr/local/etc/rc.d/qemu_user_static forcestart >/dev/null 2>&1
 
 			if binmiscctl lookup armv7 >/dev/null 2>&1; then
-				_archs="${_archs} arm.armv7"
+				_possible_archs="${_possible_archs} arm.armv7"
 			fi
 		fi
 	fi
@@ -1522,7 +1525,7 @@ poudriere_possible_archs() {
 		local _found=0
 		for _desired_arch in ${ARCH_LIST}; do
 			_found=0
-			for _possible_arch in ${_archs}; do
+			for _possible_arch in ${_possible_archs}; do
 				if [ "${_desired_arch}" = "${_possible_arch}" ]; then
 					_found=1
 					break
@@ -1537,6 +1540,30 @@ poudriere_possible_archs() {
 	fi
 
 	echo ${_archs}
+}
+
+configure_poudriere_jail_srcconf() {
+	local _jail_arch="${1}"
+	local _jail_name="${2}"
+	local _srcconf="/usr/local/etc/poudriere.d/${_jail_name}-src.conf"
+
+	if [ "${_jail_arch}" != "amd64.amd64" ] || \
+	    [ "${POUDRIERE_WITHOUT_LIB32}" != "YES" ]; then
+		return 0
+	fi
+
+	if [ -f "${_srcconf}" ] && \
+	    grep -Eq '^[[:space:]]*WITH_LIB32([[:space:]]*=|[[:space:]]*$)' "${_srcconf}"; then
+		echo ">>> ERROR: ${_srcconf} enables WITH_LIB32, but POUDRIERE_WITHOUT_LIB32=YES"
+		print_error_pfS
+	fi
+
+	if [ ! -f "${_srcconf}" ] || \
+	    ! grep -Eq '^[[:space:]]*WITHOUT_LIB32([[:space:]]*=|[[:space:]]*$)' "${_srcconf}"; then
+		echo "WITHOUT_LIB32=yes" >> "${_srcconf}"
+	fi
+
+	echo ">>> Poudriere jail ${_jail_name} configured without lib32" | tee -a ${LOGFILE}
 }
 
 poudriere_jail_name() {
@@ -1833,6 +1860,7 @@ EOF
 	# Now we are ready to create jails
 	for jail_arch in ${_archs}; do
 		jail_name=$(poudriere_jail_name ${jail_arch})
+		configure_poudriere_jail_srcconf "${jail_arch}" "${jail_name}"
 
 		if [ "${jail_arch}" = "arm.armv7" ]; then
 			native_xtools="-x"

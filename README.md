@@ -14,3 +14,8 @@ Read more at [https://pfsense.org/](https://pfsense.org/ "The pfSense homepage")
 ## Contribute
 
 For information on how to contribute to the pfSense project, see [CONTRIBUTING](.github/CONTRIBUTING.md).
+
+## Building Kontrol RELENG_2_7_2
+
+See the [RELENG_2_7_2 build notes](docs/BUILD_RELENG_2_7_2.md) for the
+FreeBSD/PHP prerequisites and the reproducible Composer workflow.
