@@ -29,6 +29,14 @@ export PRODUCT_URL="https://PRODUCT_URL/"
 #export FREEBSD_BRANCH=stable/10
 #export GIT_FREEBSD_COSHA1=##HASH##
 
+# Kontrol Poudriere jails default to amd64 without lib32. Set this to NO only
+# if 32-bit compatibility libraries become a release requirement.
+#export POUDRIERE_WITHOUT_LIB32=YES
+
+# arm.armv7 remains available as an explicit override on a configured host,
+# but it is not built automatically.
+#export DEFAULT_ARCH_LIST="amd64.amd64"
+
 # Do not clean FreeBSD obj dirs
 #export NO_CLEAN_FREEBSD_OBJ=YES
 

@@ -122,6 +122,11 @@ export FREEBSD_REPO_BASE=${FREEBSD_REPO_BASE:-"${GIT_REPO_BASE}/Freebsd-src"}
 export FREEBSD_BRANCH=${FREEBSD_BRANCH:-"${REPO_BRANCH_PREFIX}RELENG_2_7_2"}
 export FREEBSD_SRC_DIR=${FREEBSD_SRC_DIR:-"${SCRATCHDIR}/FreeBSD-src"}
 
+# Kontrol release jails are amd64-only and do not need 32-bit compatibility
+# libraries. This can be overridden explicitly in build.conf if requirements
+# change in a future release.
+export POUDRIERE_WITHOUT_LIB32=${POUDRIERE_WITHOUT_LIB32:-"YES"}
+
 export BUILD_KERNELS=${BUILD_KERNELS:-"${PRODUCT_NAME}"}
 
 # XXX: Poudriere doesn't like ssh short form
