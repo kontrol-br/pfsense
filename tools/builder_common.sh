@@ -1032,6 +1032,12 @@ setup_pkg_repo() {
 		local _pkg_repo_branch_release=${PKG_REPO_BRANCH_RELEASE}
 	fi
 
+	# Previous and upgrade are explicit appliance choices, so their branch names
+	# always remain release branches. The server still follows the caller's
+	# staging mode, just like the current-release template.
+	local _pkg_repo_branch_previous=${PKG_REPO_BRANCH_PREVIOUS}
+	local _pkg_repo_branch_upgrade=${PKG_REPO_BRANCH_UPGRADE}
+
 	mkdir -p $(dirname ${_target}) >/dev/null 2>&1
 
 	sed \
@@ -1039,6 +1045,8 @@ setup_pkg_repo() {
 		-e "s/%%MIRROR_TYPE%%/${_mirror_type}/" \
 		-e "s/%%PKG_REPO_BRANCH_DEVEL%%/${_pkg_repo_branch_devel}/g" \
 		-e "s/%%PKG_REPO_BRANCH_RELEASE%%/${_pkg_repo_branch_release}/g" \
+		-e "s/%%PKG_REPO_BRANCH_PREVIOUS%%/${_pkg_repo_branch_previous}/g" \
+		-e "s/%%PKG_REPO_BRANCH_UPGRADE%%/${_pkg_repo_branch_upgrade}/g" \
 		-e "s,%%PKG_REPO_SERVER_DEVEL%%,${_pkg_repo_server_devel},g" \
 		-e "s,%%PKG_REPO_SERVER_RELEASE%%,${_pkg_repo_server_release},g" \
 		-e "s,%%POUDRIERE_PORTS_NAME%%,${POUDRIERE_PORTS_NAME},g" \
@@ -2068,6 +2076,8 @@ poudriere_bulk() {
 
 PKG_REPO_BRANCH_DEVEL=${PKG_REPO_BRANCH_DEVEL}
 PKG_REPO_BRANCH_RELEASE=${PKG_REPO_BRANCH_RELEASE}
+PKG_REPO_BRANCH_PREVIOUS=${PKG_REPO_BRANCH_PREVIOUS}
+PKG_REPO_BRANCH_UPGRADE=${PKG_REPO_BRANCH_UPGRADE}
 PKG_REPO_SERVER_DEVEL=${PKG_REPO_SERVER_DEVEL}
 PKG_REPO_SERVER_RELEASE=${PKG_REPO_SERVER_RELEASE}
 POUDRIERE_PORTS_NAME=${POUDRIERE_PORTS_NAME}
@@ -2110,8 +2120,26 @@ EOF
 			/usr/local/poudriere/ports/${POUDRIERE_PORTS_NAME}/sysutils/${PRODUCT_NAME}-repo/Makefile
 	fi
 
-	# Copy over pkg repo templates to pfSense-repo
-	mkdir -p /usr/local/poudriere/ports/${POUDRIERE_PORTS_NAME}/sysutils/${PRODUCT_NAME}-repo/files
+	# RELENG_2_7_2 ports understands the upgrade placeholder but predates the
+	# independent previous-branch placeholder. Teach the copied port to render it.
+	local _repo_makefile=/usr/local/poudriere/ports/${POUDRIERE_PORTS_NAME}/sysutils/${PRODUCT_NAME}-repo/Makefile
+	if ! grep -q '%%PKG_REPO_BRANCH_PREVIOUS%%' ${_repo_makefile}; then
+		sed -i '' \
+		    -e '/%%PKG_REPO_BRANCH_RELEASE%%/a\
+		-e "s,%%PKG_REPO_BRANCH_PREVIOUS%%,${PKG_REPO_BRANCH_PREVIOUS},g" \' \
+		    ${_repo_makefile}
+	fi
+
+	# Copy over pkg repo templates to pfSense-repo. Remove only generated repo
+	# metadata first so stale choices from an earlier build cannot survive, while
+	# preserving unrelated port files such as pkg-install and signing keys.
+	local _repo_files_dir=/usr/local/poudriere/ports/${POUDRIERE_PORTS_NAME}/sysutils/${PRODUCT_NAME}-repo/files
+	mkdir -p ${_repo_files_dir}
+	find ${_repo_files_dir} -maxdepth 1 -type f \
+	    \( -name "${PRODUCT_NAME}-repo*.conf" \
+	    -o -name "${PRODUCT_NAME}-repo*.descr" \
+	    -o -name "${PRODUCT_NAME}-repo*.abi" \
+	    -o -name "${PRODUCT_NAME}-repo*.altabi" \) -delete
 	cp -f ${PKG_REPO_BASE}/* \
 		/usr/local/poudriere/ports/${POUDRIERE_PORTS_NAME}/sysutils/${PRODUCT_NAME}-repo/files
 
