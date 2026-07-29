@@ -53,15 +53,12 @@ if [ -f ${BUILD_CONF} ]; then
 	. ${BUILD_CONF}
 fi
 
-# Define pfSense versions
-PKG_REPO_BRANCH_DEVEL="v2_7_2"
-PKG_REPO_BRANCH_NEXT="v2_9_1"
-PKG_REPO_BRANCH_RELEASE="v2_9_0"
-PKG_REPO_BRANCH_PREVIOUS="v2_8_1"
-export PKG_REPO_BRANCH_DEVEL="v2_7_2"
-export PKG_REPO_BRANCH_NEXT="v2_9_1"
-export PKG_REPO_BRANCH_RELEASE="v2_9_0"
-export PKG_REPO_BRANCH_PREVIOUS="v2_8_1"
+# Define pfSense versions.  The devel name is retained for compatibility with
+# the repository name exposed by the GUI, but it is the legacy 2.7.2 rollback.
+export PKG_REPO_BRANCH_DEVEL=${PKG_REPO_BRANCH_DEVEL:-"v2_7_2"}
+export PKG_REPO_BRANCH_NEXT=${PKG_REPO_BRANCH_NEXT:-"v2_9_1"}
+export PKG_REPO_BRANCH_RELEASE=${PKG_REPO_BRANCH_RELEASE:-"v2_9_0"}
+export PKG_REPO_BRANCH_PREVIOUS=${PKG_REPO_BRANCH_PREVIOUS:-"v2_8_1"}
 
 # Make sure pkg will not be interactive
 export ASSUME_ALWAYS_YES=true

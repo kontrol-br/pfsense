@@ -278,7 +278,8 @@ if [ -n "${SNAPSHOTS}" -a -n "${UPLOAD}" ]; then
 		PKG_REPO_SERVER_RELEASE \
 		PKG_REPO_SERVER_STAGING \
 		PKG_REPO_BRANCH_DEVEL \
-		PKG_REPO_BRANCH_RELEASE"
+		PKG_REPO_BRANCH_RELEASE \
+		PKG_REPO_BRANCH_PREVIOUS"
 
 	for _var in ${_required}; do
 		eval "_value=\${$_var}"
