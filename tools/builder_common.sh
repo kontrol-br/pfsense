@@ -2124,10 +2124,14 @@ EOF
 	# independent previous-branch placeholder. Teach the copied port to render it.
 	local _repo_makefile=/usr/local/poudriere/ports/${POUDRIERE_PORTS_NAME}/sysutils/${PRODUCT_NAME}-repo/Makefile
 	if ! grep -q '%%PKG_REPO_BRANCH_PREVIOUS%%' ${_repo_makefile}; then
-		sed -i '' \
-		    -e '/%%PKG_REPO_BRANCH_RELEASE%%/a\
-		-e "s,%%PKG_REPO_BRANCH_PREVIOUS%%,${PKG_REPO_BRANCH_PREVIOUS},g" \' \
-		    ${_repo_makefile}
+		awk '
+			{ print }
+			/^[[:space:]]*-e "s,%%PKG_REPO_BRANCH_RELEASE%%,/ {
+				print "\t\t-e \"s,%%PKG_REPO_BRANCH_PREVIOUS%%,${PKG_REPO_BRANCH_PREVIOUS},g\" \\"
+			}
+		' ${_repo_makefile} > ${_repo_makefile}.tmp || return 1
+		cat ${_repo_makefile}.tmp > ${_repo_makefile} || return 1
+		rm -f ${_repo_makefile}.tmp
 	fi
 
 	# Copy over pkg repo templates to pfSense-repo. Remove only generated repo
