@@ -1134,11 +1134,13 @@ setup_pkg_repo() {
 	if [ -n "${_staging}" -a -n "${USE_PKG_REPO_STAGING}" ]; then
 		local _pkg_repo_server_devel=${PKG_REPO_SERVER_STAGING}
 		local _pkg_repo_branch_devel=${PKG_REPO_BRANCH_STAGING}
+		local _pkg_repo_branch_previous=${PKG_REPO_BRANCH_STAGING}
 		local _pkg_repo_server_release=${PKG_REPO_SERVER_STAGING}
 		local _pkg_repo_branch_release=${PKG_REPO_BRANCH_STAGING}
 	else
 		local _pkg_repo_server_devel=${PKG_REPO_SERVER_DEVEL}
 		local _pkg_repo_branch_devel=${PKG_REPO_BRANCH_DEVEL}
+		local _pkg_repo_branch_previous=${PKG_REPO_BRANCH_PREVIOUS}
 		local _pkg_repo_server_release=${PKG_REPO_SERVER_RELEASE}
 		local _pkg_repo_branch_release=${PKG_REPO_BRANCH_RELEASE}
 	fi
@@ -1153,6 +1155,7 @@ setup_pkg_repo() {
 		-e "s/%%MIRROR_TYPE%%/none/" \
 		-e '/mirror_type:/ s/"[^"]*"/"none"/' \
 		-e "s/%%PKG_REPO_BRANCH_DEVEL%%/${_pkg_repo_branch_devel}/g" \
+		-e "s/%%PKG_REPO_BRANCH_PREVIOUS%%/${_pkg_repo_branch_previous}/g" \
 		-e "s/%%PKG_REPO_BRANCH_RELEASE%%/${_pkg_repo_branch_release}/g" \
 		-e "s,%%PKG_REPO_SERVER_DEVEL%%,${_pkg_repo_server_devel},g" \
 		-e "s,%%PKG_REPO_SERVER_RELEASE%%,${_pkg_repo_server_release},g" \
@@ -2157,7 +2160,6 @@ poudriere_bulk() {
 	cat <<EOF >>/usr/local/etc/poudriere.d/${POUDRIERE_PORTS_NAME}-make.conf
 
 PKG_REPO_BRANCH_DEVEL=${PKG_REPO_BRANCH_DEVEL}
-PKG_REPO_BRANCH_NEXT=${PKG_REPO_BRANCH_NEXT}
 PKG_REPO_BRANCH_RELEASE=${PKG_REPO_BRANCH_RELEASE}
 PKG_REPO_BRANCH_PREVIOUS=${PKG_REPO_BRANCH_PREVIOUS}
 PKG_REPO_SERVER_DEVEL=${PKG_REPO_SERVER_DEVEL}
@@ -2203,10 +2205,20 @@ EOF
 			/usr/local/poudriere/ports/${POUDRIERE_PORTS_NAME}/sysutils/${PRODUCT_NAME}-repo/Makefile
 	fi
 
-	# Copy over pkg repo templates to pfSense-repo
-	mkdir -p /usr/local/poudriere/ports/${POUDRIERE_PORTS_NAME}/sysutils/${PRODUCT_NAME}-repo/files
-	cp -f ${PKG_REPO_BASE}/* \
-		/usr/local/poudriere/ports/${POUDRIERE_PORTS_NAME}/sysutils/${PRODUCT_NAME}-repo/files
+	# Replace repository templates in the renamed port.  Remove old repository
+	# definitions first so a stale upgrade/devel file cannot leak into a build.
+	local _repo_files=/usr/local/poudriere/ports/${POUDRIERE_PORTS_NAME}/sysutils/${PRODUCT_NAME}-repo/files
+	mkdir -p ${_repo_files}
+	find ${_repo_files} -type f \( \
+		-name "${PRODUCT_NAME}-repo*.conf" -o \
+		-name "${PRODUCT_NAME}-repo*.descr" -o \
+		-name "${PRODUCT_NAME}-repo*.abi" -o \
+		-name "${PRODUCT_NAME}-repo*.altabi" -o \
+		-name "${PRODUCT_NAME}-repo*.osversion" -o \
+		-name "${PRODUCT_NAME}-repo*.help" \) -delete
+	find ${PKG_REPO_BASE} -type f -mindepth 1 -maxdepth 1 | sort | while read _repo_template; do
+		cp -f ${_repo_template} ${_repo_files}/
+	done
 
 	for jail_arch in ${_archs}; do
 		jail_name=$(poudriere_jail_name ${jail_arch})
