@@ -1132,12 +1132,14 @@ setup_pkg_repo() {
 	fi
 
 	if [ -n "${_staging}" -a -n "${USE_PKG_REPO_STAGING}" ]; then
+		local _pkg_repo_branch_backport=${PKG_REPO_BRANCH_STAGING}
 		local _pkg_repo_server_devel=${PKG_REPO_SERVER_STAGING}
 		local _pkg_repo_branch_devel=${PKG_REPO_BRANCH_STAGING}
 		local _pkg_repo_branch_previous=${PKG_REPO_BRANCH_STAGING}
 		local _pkg_repo_server_release=${PKG_REPO_SERVER_STAGING}
 		local _pkg_repo_branch_release=${PKG_REPO_BRANCH_STAGING}
 	else
+		local _pkg_repo_branch_backport=${PKG_REPO_BRANCH_BACKPORT}
 		local _pkg_repo_server_devel=${PKG_REPO_SERVER_DEVEL}
 		local _pkg_repo_branch_devel=${PKG_REPO_BRANCH_DEVEL}
 		local _pkg_repo_branch_previous=${PKG_REPO_BRANCH_PREVIOUS}
@@ -1154,6 +1156,7 @@ setup_pkg_repo() {
 		-e "s/%%ARCH%%/${_target_arch}/" \
 		-e "s/%%MIRROR_TYPE%%/none/" \
 		-e '/mirror_type:/ s/"[^"]*"/"none"/' \
+		-e "s/%%PKG_REPO_BRANCH_BACKPORT%%/${_pkg_repo_branch_backport}/g" \
 		-e "s/%%PKG_REPO_BRANCH_DEVEL%%/${_pkg_repo_branch_devel}/g" \
 		-e "s/%%PKG_REPO_BRANCH_PREVIOUS%%/${_pkg_repo_branch_previous}/g" \
 		-e "s/%%PKG_REPO_BRANCH_RELEASE%%/${_pkg_repo_branch_release}/g" \
@@ -2159,6 +2162,7 @@ poudriere_bulk() {
 
 	cat <<EOF >>/usr/local/etc/poudriere.d/${POUDRIERE_PORTS_NAME}-make.conf
 
+PKG_REPO_BRANCH_BACKPORT=${PKG_REPO_BRANCH_BACKPORT}
 PKG_REPO_BRANCH_DEVEL=${PKG_REPO_BRANCH_DEVEL}
 PKG_REPO_BRANCH_RELEASE=${PKG_REPO_BRANCH_RELEASE}
 PKG_REPO_BRANCH_PREVIOUS=${PKG_REPO_BRANCH_PREVIOUS}
