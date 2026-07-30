@@ -67,6 +67,10 @@ include_once('config.lib.inc');
 /* parse the configuration and include all configuration functions */
 require_once("functions.inc");
 
+/* Load first-party Kontrol classes from Kontrol-base.  Do not rely on the
+ * separately packaged Composer autoload map for files owned by Kontrol-base. */
+require_once("/usr/local/Kontrol/include/autoload.inc.php");
+
 /* Include the autoloader for all the GUI display classes */
 require_once("classes/autoload.inc.php");
 
