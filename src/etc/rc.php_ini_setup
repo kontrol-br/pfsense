@@ -220,6 +220,7 @@ extension_dir=${EXTENSIONSDIR}
 date.timezone="${TIMEZONE}"
 session.hash_bits_per_character = 5
 session.hash_function = 1
+session.upload_progress.enabled = Off
 ${error_reporting}
 ${exception_ignore_args}
 
