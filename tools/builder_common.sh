@@ -245,8 +245,7 @@ make_world() {
 	echo ">>> LOGFILE set to $LOGFILE." | tee -a ${LOGFILE}
 	if [ -n "${NO_BUILDWORLD}" ]; then
 		echo ">>> NO_BUILDWORLD set, skipping build" | tee -a ${LOGFILE}
-		return
-	fi
+	else
 
 	# Kontrol must build its own bootstrap compiler rather than accept a host
 	# compiler selected by the FreeBSD system-compiler optimization.
@@ -275,6 +274,7 @@ make_world() {
 	script -aq $LOGFILE ${BUILDER_SCRIPTS}/build_freebsd.sh -K -s ${FREEBSD_SRC_DIR} \
 		|| print_error_pfS
 	echo ">>> $(LC_ALL=C date) - Finished build world for ${TARGET} architecture..." | tee -a ${LOGFILE}
+	fi
 
 	LOGFILE=${BUILDER_LOGS}/installworld.${TARGET}
 	echo ">>> LOGFILE set to $LOGFILE." | tee -a ${LOGFILE}
