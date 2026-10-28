@@ -1565,7 +1565,7 @@ function pkg_switch_repo() {
 	mwexec("/usr/local/sbin/{$g['product_name']}-repo-setup -U");
 
 	/* Update pfSense_version cache */
-	mwexec_bg("/etc/rc.update_pkg_metadata now");
+	mwexec_bg("/usr/bin/env IGNORE_OSVERSION=yes /etc/rc.update_pkg_metadata now");
 	return;
 }
 
