@@ -35,6 +35,7 @@ require_once("pkg-utils.inc");
 $repos = pkg_list_repos();
 
 if ($_POST) {
+	$repo_switch_requested = false;
 
 	init_config_arr(array('system', 'firmware'));
 	if ($_POST['disablecheck'] == "yes") {
@@ -56,7 +57,7 @@ if ($_POST) {
 	foreach ($repos as $repo) {
 		if ($repo['name'] == $_POST['fwbranch']) {
 			config_set_path('system/pkg_repo_conf_path', $repo['path']);
-			pkg_switch_repo($repo['path'], $repo['name']);
+			$repo_switch_requested = $repo['path'];
 			break;
 		}
 	}
@@ -98,6 +99,9 @@ if ($_POST) {
 		config_del_path('system/gitsync');
 	}
 	write_config(gettext("Saved system update settings."));
+	if ($repo_switch_requested) {
+		pkg_switch_repo($repo_switch_requested);
+	}
 
 	$savemsg = gettext("Changes have been saved successfully");
 }

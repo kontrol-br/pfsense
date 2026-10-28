@@ -1349,6 +1349,11 @@ pkg_repo_rsync() {
 
 	# Sanitize path
 	_repo_path=$(realpath ${_repo_path_param})
+	if [ -L "${_repo_path}/.latest" ]; then
+		local _real_repo_path=$(readlink -f ${_repo_path}/.latest)
+	else
+		local _real_repo_path=${_repo_path}
+	fi
 
 	local _repo_dir=$(dirname ${_repo_path})
 	local _repo_base=$(basename ${_repo_path})
@@ -1363,13 +1368,6 @@ pkg_repo_rsync() {
 	fi
 
 	if [ -n "${PKG_REPO_SIGNING_COMMAND}" -a -z "${DO_NOT_SIGN_PKG_REPO}" ]; then
-		# Detect poudriere directory structure
-		if [ -L "${_repo_path}/.latest" ]; then
-			local _real_repo_path=$(readlink -f ${_repo_path}/.latest)
-		else
-			local _real_repo_path=${_repo_path}
-		fi
-
 		echo -n ">>> Signing repository... " | tee -a ${_logfile}
 		############ ATTENTION ##############
 		#
@@ -1409,6 +1407,24 @@ pkg_repo_rsync() {
 		return
 	fi
 
+	local _repo_validator="${BUILDER_TOOLS}/validate_repo_integrity.sh"
+	local _repo_validator_args=""
+	if [ ! -x "${_repo_validator}" ]; then
+		echo ">>> ERROR: Repository validator is missing: ${_repo_validator}"
+		print_error_pfS
+	fi
+	if [ -n "${DO_NOT_SIGN_PKG_REPO}" ]; then
+		_repo_validator_args="-u"
+	fi
+	echo -n ">>> Validating repository integrity... " | tee -a ${_logfile}
+	if script -aq ${_logfile} "${_repo_validator}" ${_repo_validator_args} "${_real_repo_path}"; then
+		echo "Done!" | tee -a ${_logfile}
+	else
+		echo "Failed!" | tee -a ${_logfile}
+		echo ">>> ERROR: Repository publication aborted before rsync"
+		print_error_pfS
+	fi
+
 	local _pkg_rsync_site
 	for _pkg_rsync_site in ${PKG_RSYNC_HOSTS}; do
 		eval _pkg_rsync_hostname=\$PKG_RSYNC_HOSTNAME_$_pkg_rsync_site
@@ -1421,15 +1437,39 @@ pkg_repo_rsync() {
 			${PKG_RSYNC_USERNAME}@${_pkg_rsync_hostname} \
 			"mkdir -p ${PKG_RSYNC_DESTDIR}"
 
-		echo -n ">>> Sending updated repository to ${_pkg_rsync_hostname}... " | tee -a ${_logfile}
+		echo -n ">>> Sending package payloads to ${_pkg_rsync_hostname}... " | tee -a ${_logfile}
 		if script -aq ${_logfile} rsync -Have "ssh -o StrictHostKeyChecking=no -p ${PKG_RSYNC_SSH_PORT}" \
-			--timeout=60 --delete-delay ${_repo_path} \
+			--timeout=60 --include='*/' --include='**/All/*.pkg' --exclude='*' ${_repo_path} \
 			${PKG_RSYNC_USERNAME}@${_pkg_rsync_hostname}:${PKG_RSYNC_DESTDIR} >> ${BUILDER_LOGS}/rsync.log 2>&1
 		then
 			echo "Done!" | tee -a ${_logfile}
 		else
 			echo "Failed!" | tee -a ${_logfile}
 			echo ">>> ERROR: An error occurred sending repo to remote hostname"
+			print_error_pfS
+		fi
+
+		echo -n ">>> Sending repository metadata to ${_pkg_rsync_hostname}... " | tee -a ${_logfile}
+		if script -aq ${_logfile} rsync -Have "ssh -o StrictHostKeyChecking=no -p ${PKG_RSYNC_SSH_PORT}" \
+			--timeout=60 --exclude='*/.latest' --exclude='**/All/*.pkg' ${_repo_path} \
+			${PKG_RSYNC_USERNAME}@${_pkg_rsync_hostname}:${PKG_RSYNC_DESTDIR} >> ${BUILDER_LOGS}/rsync.log 2>&1
+		then
+			echo "Done!" | tee -a ${_logfile}
+		else
+			echo "Failed!" | tee -a ${_logfile}
+			echo ">>> ERROR: An error occurred sending repository metadata"
+			print_error_pfS
+		fi
+
+		echo -n ">>> Activating repository on ${_pkg_rsync_hostname}... " | tee -a ${_logfile}
+		if script -aq ${_logfile} rsync -Have "ssh -o StrictHostKeyChecking=no -p ${PKG_RSYNC_SSH_PORT}" \
+			--timeout=60 --include='*/' --include='*/.latest' --exclude='*' ${_repo_path} \
+			${PKG_RSYNC_USERNAME}@${_pkg_rsync_hostname}:${PKG_RSYNC_DESTDIR} >> ${BUILDER_LOGS}/rsync.log 2>&1
+		then
+			echo "Done!" | tee -a ${_logfile}
+		else
+			echo "Failed!" | tee -a ${_logfile}
+			echo ">>> ERROR: An error occurred activating repository"
 			print_error_pfS
 		fi
 
@@ -1462,7 +1502,23 @@ pkg_repo_rsync() {
 			fi
 
 			_cmd="rsync -Have \"ssh -o StrictHostKeyChecking=no -p ${PKG_FINAL_RSYNC_SSH_PORT}\" \
-				--timeout=60 --delete-delay ${PKG_RSYNC_DESTDIR}/./${_repo_base%%-core}* \
+				--timeout=60 --include=\"*/\" --include=\"**/All/*.pkg\" --exclude=\"*\" \
+				${PKG_RSYNC_DESTDIR}/./${_repo_base%%-core}* \
+				${PKG_FINAL_RSYNC_USERNAME}@${_pkg_final_rsync_hostname}:${PKG_FINAL_RSYNC_DESTDIR}"
+
+			echo -n ">>> Sending package payloads to ${_pkg_final_rsync_hostname}... " | tee -a ${_logfile}
+			if script -aq ${_logfile} ssh -o StrictHostKeyChecking=no -p ${PKG_RSYNC_SSH_PORT} \
+				${PKG_RSYNC_USERNAME}@${_pkg_rsync_hostname} ${_cmd} >> ${BUILDER_LOGS}/rsync.log 2>&1; then
+				echo "Done!" | tee -a ${_logfile}
+			else
+				echo "Failed!" | tee -a ${_logfile}
+				echo ">>> ERROR: An error occurred sending package payloads to final hostname"
+				print_error_pfS
+			fi
+
+			_cmd="rsync -Have \"ssh -o StrictHostKeyChecking=no -p ${PKG_FINAL_RSYNC_SSH_PORT}\" \
+				--timeout=60 --exclude=\"*/.latest\" --exclude=\"**/All/*.pkg\" \
+				${PKG_RSYNC_DESTDIR}/./${_repo_base%%-core}* \
 				${PKG_FINAL_RSYNC_USERNAME}@${_pkg_final_rsync_hostname}:${PKG_FINAL_RSYNC_DESTDIR}"
 
 			echo -n ">>> Sending updated repositories metadata to ${_pkg_final_rsync_hostname}... " | tee -a ${_logfile}
@@ -1472,6 +1528,21 @@ pkg_repo_rsync() {
 			else
 				echo "Failed!" | tee -a ${_logfile}
 				echo ">>> ERROR: An error occurred sending repo to final hostname"
+				print_error_pfS
+			fi
+
+			_cmd="rsync -Have \"ssh -o StrictHostKeyChecking=no -p ${PKG_FINAL_RSYNC_SSH_PORT}\" \
+				--timeout=60 ${PKG_RSYNC_DESTDIR}/./${_repo_base%%-core}* \
+				--include=\"/*\" --include=\"*/.latest\" --exclude=\"*\" \
+				${PKG_FINAL_RSYNC_USERNAME}@${_pkg_final_rsync_hostname}:${PKG_FINAL_RSYNC_DESTDIR}"
+
+			echo -n ">>> Activating repositories on ${_pkg_final_rsync_hostname}... " | tee -a ${_logfile}
+			if script -aq ${_logfile} ssh -o StrictHostKeyChecking=no -p ${PKG_RSYNC_SSH_PORT} \
+				${PKG_RSYNC_USERNAME}@${_pkg_rsync_hostname} ${_cmd} >> ${BUILDER_LOGS}/rsync.log 2>&1; then
+				echo "Done!" | tee -a ${_logfile}
+			else
+				echo "Failed!" | tee -a ${_logfile}
+				echo ">>> ERROR: An error occurred activating repositories on final hostname"
 				print_error_pfS
 			fi
 

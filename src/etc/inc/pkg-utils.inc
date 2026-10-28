@@ -1491,20 +1491,49 @@ function pkg_get_repo_help() {
 }
 
 /* Switch between stable and devel repos */
-function pkg_switch_repo($repo_path, $repo_name) {
+function pkg_switch_repo($repo_path, $repo_name = null) {
 	global $g, $config;
 
 	safe_mkdir("/usr/local/etc/pkg/repos");
-	@unlink("/usr/local/etc/pkg/repos/{$g['product_name']}.conf");
-	$repo = "{$repo_path}/{$g['product_name']}-repo-{$repo_name}.conf";
-	@symlink($repo, "/usr/local/etc/pkg/repos/{$g['product_name']}.conf");
+	$repo = null;
+	if (is_file($repo_path)) {
+		$repo = $repo_path;
+	} elseif (!empty($repo_name)) {
+		foreach (pkg_list_repos() as $candidate) {
+			if (strcasecmp($candidate['name'], $repo_name) == 0 && is_file($candidate['path'])) {
+				$repo = $candidate['path'];
+				break;
+			}
+		}
+	}
+	if (empty($repo)) {
+		log_error("Unable to switch package repository: invalid repository path or name");
+		return false;
+	}
+
+	$repo_link = "/usr/local/etc/pkg/repos/{$g['product_name']}.conf";
+	$old_repo = is_link($repo_link) ? readlink($repo_link) : null;
+	$repo_link_tmp = "{$repo_link}.tmp." . getmypid();
+	@unlink($repo_link_tmp);
+	if (!@symlink($repo, $repo_link_tmp) || !@rename($repo_link_tmp, $repo_link)) {
+		@unlink($repo_link_tmp);
+		log_error("Unable to activate package repository {$repo}");
+		return false;
+	}
 
 	/* Do not fetch new settings, only setup the repo pkg.conf. */
-	mwexec("/usr/local/sbin/{$g['product_name']}-repo-setup -U");
+	if (mwexec("/usr/local/sbin/{$g['product_name']}-repo-setup -U") != 0) {
+		@unlink($repo_link);
+		if (!empty($old_repo)) {
+			@symlink($old_repo, $repo_link);
+		}
+		log_error("Unable to configure package repository {$repo}");
+		return false;
+	}
 
 	/* Update pfSense_version cache */
-	mwexec_bg("/etc/rc.update_pkg_metadata now");
-	return;
+	mwexec_bg("/usr/bin/env IGNORE_OSVERSION=yes /etc/rc.update_pkg_metadata now");
+	return true;
 }
 
 /*
